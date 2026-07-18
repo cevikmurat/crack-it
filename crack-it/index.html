@@ -2471,6 +2471,15 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .qr-sub{font-size:.66rem;color:#8a8a9a;text-align:center;line-height:1.4;margin-top:-4px;}
 #qr{width:190px;height:190px;display:flex;align-items:center;justify-content:center;}
 #qr img,#qr canvas{width:190px !important;height:190px !important;}
+#qr{cursor:zoom-in;}
+.qr-zoom{display:none;position:fixed;inset:0;z-index:120;background:#ffffff;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;}
+.qr-zoom.show{display:flex;}
+.qr-zoom-inner{display:flex;flex-direction:column;align-items:center;gap:20px;}
+.qr-zoom-title{font-weight:800;font-size:clamp(1.1rem,4vw,1.7rem);color:#1b1d28;text-align:center;}
+.qr-zoom-title span{color:#e0531f;letter-spacing:.1em;}
+#qz-img{width:min(80vw,80vh);height:min(80vw,80vh);}
+#qz-img img{width:100% !important;height:100% !important;image-rendering:pixelated;}
+.qr-zoom-hint{font-size:.9rem;color:#6c7286;}
 body.light{--bg:#e9edf5;--surface:#ffffff;--surface2:#eef1f8;--text:#1b1d28;--muted:#6c7286;--border:#d8dded;--accent:#eab308;--accent2:#e0531f;--green:#0aa564;--blue:#2f6fd0;--accent-ink:#b45309;}
 body.light::before{background:radial-gradient(ellipse at 20% 10%,rgba(224,90,43,.05) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(47,111,208,.05) 0%,transparent 55%);}
 body.light .logo,body.light .logo .crack,body.light .card-title,body.light .roomcode,body.light .clue-len,body.light .lb-title,body.light .result-title,body.light .glogo,body.light .lb-rank.r1,body.light .toast.win,body.light .toast.warn,body.light .note a{color:#b45309;}
@@ -2545,18 +2554,18 @@ body.light .btn.primary{color:#3a2a00;}
 <!-- ═══ TEACHER: LIVE BOARD ═══ -->
 <div class="screen" id="s-board">
   <button class="back" onclick="leaveBoard()">← End round</button>
-  <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
-
-  <div class="roomcode-box">
-    <div class="roomcode-label">Room code</div>
-    <div class="roomcode" id="b-code">----</div>
-    <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
-  </div>
 
   <div class="qr-box" id="qr-box">
     <div class="qr-cap">📱 Students: scan to join</div>
     <div id="qr"></div>
-    <div class="qr-sub">Scan opens the game with the code already filled in — students just type their name.</div>
+    <div class="qr-sub">Tap the QR to enlarge it for the class · tap again to close. Scanning fills in the room code automatically.</div>
+  </div>
+
+  <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
+  <div class="roomcode-box">
+    <div class="roomcode-label">Room code</div>
+    <div class="roomcode" id="b-code">----</div>
+    <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
   </div>
 
   <div class="btn-row">
@@ -2580,8 +2589,9 @@ body.light .btn.primary{color:#3a2a00;}
   <button class="back" onclick="go('s-home')">← Back</button>
   <div class="logo" style="font-size:1.5rem;margin-top:4px;">Join the round</div>
 
-  <div class="label">Room code</div>
+  <div class="label" id="j-code-label">Room code</div>
   <input class="input code" id="j-code" type="text" placeholder="ABCD" maxlength="4" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+  <div id="j-code-confirm" style="display:none;width:100%;text-align:center;font-weight:800;color:var(--green);font-size:1.05rem;margin:2px 0 6px;"></div>
 
   <div class="label">Your name</div>
   <input class="input" id="j-name" type="text" placeholder="e.g. Aylin" maxlength="18" autocomplete="off">
@@ -2620,6 +2630,15 @@ body.light .btn.primary{color:#3a2a00;}
   <div class="input-row">
     <input class="input" id="p-input" type="text" placeholder="your guess…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
     <button class="submit" onclick="submitGuess()">▶</button>
+  </div>
+</div>
+
+<!-- ═══ QR ENLARGE OVERLAY ═══ -->
+<div class="qr-zoom" id="qr-zoom" onclick="closeQRZoom()">
+  <div class="qr-zoom-inner">
+    <div class="qr-zoom-title">Scan to join · Room <span id="qz-code">—</span></div>
+    <div id="qz-img"></div>
+    <div class="qr-zoom-hint">Tap anywhere to close</div>
   </div>
 </div>
 
@@ -2798,23 +2817,44 @@ async function createRound(){
 }
 
 // Build the scan-to-join QR for the current room (points at this page with the code pre-filled)
+let qrJoinUrl=null, qrRoomCode=null;
+function makeQRImg(url, cellSize){
+  const qr=qrcode(0,'M'); qr.addData(url); qr.make();
+  const wrap=document.createElement('div');
+  wrap.innerHTML=qr.createImgTag(cellSize,8);
+  const img=wrap.querySelector('img');
+  if(img){ img.removeAttribute('width'); img.removeAttribute('height'); }
+  return wrap.innerHTML;
+}
 function showBoardQR(code){
   const holder=document.getElementById('qr');
   const box=document.getElementById('qr-box');
   if(!holder) return;
-  holder.innerHTML='';
+  holder.innerHTML=''; holder.onclick=null;
   if(typeof qrcode==='undefined'){ if(box) box.style.display='none'; return; }
   if(box) box.style.display='flex';
-  const joinUrl=location.origin+location.pathname+'?code='+code;
+  qrRoomCode=code;
+  qrJoinUrl=location.origin+location.pathname+'?code='+code;
   try{
-    const qr=qrcode(0,'M');
-    qr.addData(joinUrl);
-    qr.make();
-    holder.innerHTML=qr.createImgTag(6,8);
+    holder.innerHTML=makeQRImg(qrJoinUrl,6);
     const img=holder.querySelector('img');
-    if(img){ img.style.width='190px'; img.style.height='190px'; img.removeAttribute('width'); img.removeAttribute('height'); img.alt='QR to join room '+code; }
+    if(img){ img.style.width='190px'; img.style.height='190px'; img.alt='QR to join room '+code; }
+    holder.style.cursor='zoom-in';
+    holder.onclick=openQRZoom;   // tap to enlarge for the class
   }catch(e){ if(box) box.style.display='none'; }
 }
+
+// Tap the board QR to blow it up fullscreen (great for projecting); tap again to close.
+function openQRZoom(){
+  if(typeof qrcode==='undefined'||!qrJoinUrl) return;
+  const imgBox=document.getElementById('qz-img');
+  const codeEl=document.getElementById('qz-code');
+  if(!imgBox) return;
+  try{ imgBox.innerHTML=makeQRImg(qrJoinUrl,10); }catch(e){ return; }
+  if(codeEl) codeEl.textContent=qrRoomCode||'';
+  document.getElementById('qr-zoom').classList.add('show');
+}
+function closeQRZoom(){ const z=document.getElementById('qr-zoom'); if(z) z.classList.remove('show'); }
 
 function startBoardPolling(){
   stopBoardPolling();
@@ -3068,6 +3108,13 @@ function toggleTheme(){
   if(c.length===4){
     const codeEl=document.getElementById('j-code');
     if(codeEl) codeEl.value=c;
+    // Arrived by scanning the QR: the room code is already known, so hide the
+    // code box and show a small confirmation — the student sees only a name box.
+    const lbl=document.getElementById('j-code-label');
+    const conf=document.getElementById('j-code-confirm');
+    if(codeEl) codeEl.style.display='none';
+    if(lbl) lbl.style.display='none';
+    if(conf){ conf.textContent='🔓 Room '+c+' — just type your name'; conf.style.display='block'; }
     go('s-join');
     setTimeout(()=>{ const n=document.getElementById('j-name'); if(n) n.focus(); },150);
   }
