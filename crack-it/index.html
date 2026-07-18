@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-content">
+<title>Crack It! — Classroom</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0f0f13;--surface:#1a1a22;--surface2:#22222e;
+  --accent:#f5c842;--accent2:#e05a2b;--green:#3dd68c;--blue:#5b9cf5;
+  --text:#f0ede8;--muted:#6b6b7f;--border:#2e2e3e;
+}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 10%,rgba(245,200,66,.06) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(224,90,43,.06) 0%,transparent 55%);pointer-events:none;z-index:0;}
+.screen{display:none;width:100%;max-width:520px;flex-direction:column;align-items:center;padding:18px 16px 40px;gap:10px;position:relative;z-index:1;}
+.screen.active{display:flex;}
+
+/* ── Brand ── */
+.logo{font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:var(--accent);text-align:center;margin-top:14px;}
+.logo .crack{color:var(--accent2);}
+.logo-sub{font-size:.62rem;letter-spacing:.32em;color:var(--muted);text-align:center;margin-bottom:6px;text-transform:uppercase;}
+.tagline{font-size:.8rem;color:var(--muted);text-align:center;line-height:1.5;max-width:380px;margin-bottom:10px;}
+
+/* ── Cards / menu ── */
+.card{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;transition:all .2s;}
+.card.tap{cursor:pointer;}
+.card.tap:hover{border-color:var(--accent);transform:translateY(-1px);}
+.card-row{display:flex;align-items:center;gap:14px;}
+.card-emoji{font-size:1.6rem;flex-shrink:0;}
+.card-title{font-size:1rem;font-weight:800;letter-spacing:.02em;color:var(--accent);margin-bottom:3px;}
+.card-title.orange{color:var(--accent2);}
+.card-desc{font-size:.72rem;color:var(--muted);line-height:1.45;}
+
+/* ── Forms ── */
+.label{width:100%;font-size:.62rem;font-weight:800;letter-spacing:.18em;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;}
+.hint{width:100%;font-size:.68rem;color:var(--muted);line-height:1.45;margin-bottom:6px;}
+.input{width:100%;padding:13px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:11px;font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:700;color:var(--text);outline:none;transition:all .2s;letter-spacing:.05em;}
+.input:focus{border-color:var(--accent);}
+.input::placeholder{color:var(--muted);font-weight:400;letter-spacing:0;}
+.input.code{text-transform:uppercase;letter-spacing:.28em;text-align:center;font-size:1.5rem;}
+.row{display:flex;gap:8px;width:100%;}
+.row .input{flex:1;}
+.stepper{display:flex;gap:6px;width:100%;}
+.step-btn{flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-family:'JetBrains Mono',monospace;font-weight:800;font-size:.95rem;cursor:pointer;color:var(--muted);transition:all .15s;}
+.step-btn.sel{border-color:var(--accent);background:rgba(245,200,66,.12);color:var(--accent);}
+
+.btn{width:100%;padding:15px;border:none;border-radius:13px;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:1rem;letter-spacing:.06em;cursor:pointer;transition:all .15s;}
+.btn:active{transform:scale(.98);}
+.btn.primary{background:var(--accent);color:#0f0f13;}
+.btn.primary:hover{background:#f7d35e;}
+.btn.orange{background:var(--accent2);color:#fff;}
+.btn.orange:hover{background:#ec6a3d;}
+.btn.green{background:#25d366;color:#fff;}
+.btn.ghost{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700;font-size:.78rem;padding:11px;letter-spacing:.04em;}
+.btn.ghost:hover{border-color:var(--accent);color:var(--text);}
+.btn-row{display:flex;gap:8px;width:100%;}
+.btn-row .btn{flex:1;}
+
+.back{align-self:flex-start;background:none;border:none;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;padding:6px 0;}
+.back:hover{color:var(--accent);}
+
+.err{width:100%;padding:11px 14px;background:rgba(224,90,43,.14);border:1px solid var(--accent2);border-radius:10px;color:#f0a07f;font-size:.76rem;font-weight:700;text-align:center;display:none;}
+.err.show{display:block;}
+
+/* ── Room code reveal (teacher) ── */
+.roomcode-box{width:100%;background:var(--surface);border:2px dashed var(--accent);border-radius:16px;padding:18px;text-align:center;}
+.roomcode-label{font-size:.6rem;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.roomcode{font-family:'JetBrains Mono',monospace;font-size:3rem;font-weight:800;color:var(--accent);letter-spacing:.18em;line-height:1;}
+.roomcode-clue{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:.78rem;color:var(--muted);}
+.roomcode-clue b{color:var(--green);font-family:'JetBrains Mono',monospace;letter-spacing:.04em;}
+
+/* ── Game / play ── */
+.ghdr{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;}
+.glogo{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:800;color:var(--accent);}
+.player-pill{font-size:.66rem;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+.player-pill b{color:var(--blue);}
+
+.clue-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;}
+.clue-label{font-size:.58rem;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;}
+.clue-word{font-family:'JetBrains Mono',monospace;font-size:1.5rem;font-weight:800;color:var(--green);letter-spacing:.03em;line-height:1.2;word-break:break-word;}
+.clue-len{font-size:.72rem;color:var(--accent);margin-top:6px;letter-spacing:.08em;}
+
+.legend{width:100%;display:flex;gap:8px;}
+.legend-item{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 8px;text-align:center;font-size:.62rem;color:var(--muted);line-height:1.3;}
+.legend-item b{display:block;font-family:'JetBrains Mono',monospace;font-size:.92rem;margin-bottom:1px;}
+.legend-item .k{color:var(--green);}
+.legend-item .l{color:var(--accent);}
+
+.attempts{width:100%;display:flex;align-items:center;gap:9px;}
+.att-label{font-size:.62rem;color:var(--muted);font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+.dots{display:flex;gap:4px;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--border);transition:background .2s;}
+.dot.used{background:var(--accent2);}
+
+.guesses{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:8px;min-height:54px;max-height:240px;overflow-y:auto;}
+.guess-empty{text-align:center;color:var(--muted);font-size:.78rem;padding:14px;}
+.guess-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;margin-bottom:3px;background:var(--surface2);}
+.guess-word{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:700;letter-spacing:.12em;flex:1;}
+.guess-fb{font-family:'JetBrains Mono',monospace;font-size:.95rem;font-weight:800;white-space:nowrap;}
+.guess-fb .k{color:var(--green);}
+.guess-fb .l{color:var(--accent);}
+.guess-fb .z{color:var(--muted);}
+
+.toast{width:100%;padding:12px;border-radius:11px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.92rem;font-weight:700;min-height:44px;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--surface);border:1px solid var(--border);color:var(--muted);transition:all .25s;}
+.toast.ok{border-color:var(--green);background:rgba(61,214,140,.1);color:var(--green);}
+.toast.warn{border-color:var(--accent);background:rgba(245,200,66,.08);color:var(--accent);}
+.toast.win{border-color:var(--accent);background:rgba(245,200,66,.2);color:var(--accent);font-size:1.05rem;}
+
+.input-row{display:flex;gap:8px;width:100%;}
+.input-row .input{flex:1;}
+.submit{padding:13px 20px;background:var(--accent);border:none;border-radius:11px;color:#0f0f13;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:1rem;cursor:pointer;}
+.submit:active{transform:scale(.95);}
+
+/* ── Leaderboard ── */
+.lb-wrap{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 12px;}
+.lb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.lb-title{font-size:.7rem;font-weight:800;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;}
+.lb-live{font-size:.58rem;color:var(--green);font-weight:800;display:flex;align-items:center;gap:5px;}
+.lb-live::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.lb-empty{text-align:center;color:var(--muted);font-size:.76rem;padding:16px 8px;line-height:1.5;}
+.lb-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);}
+.lb-row:last-child{border-bottom:none;}
+.lb-rank{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:.95rem;width:26px;color:var(--muted);text-align:center;flex-shrink:0;}
+.lb-rank.r1{color:var(--accent);}.lb-rank.r2{color:#c0c0c8;}.lb-rank.r3{color:var(--accent2);}
+.lb-name{flex:1;font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-name.me{color:var(--blue);}
+.lb-name.me::after{content:' (you)';font-size:.66rem;color:var(--muted);font-weight:400;}
+.lb-stat{font-family:'JetBrains Mono',monospace;font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+.lb-stat.solved{color:var(--green);}
+.lb-stat.failed{color:var(--accent2);}
+
+/* ── Win / result overlay ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100;align-items:center;justify-content:center;padding:14px;overflow-y:auto;}
+.overlay.show{display:flex;}
+.result-box{background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:22px 18px;text-align:center;max-width:380px;width:100%;max-height:calc(100vh - 28px);overflow-y:auto;}
+.result-emoji{font-size:2.4rem;margin-bottom:6px;}
+.result-title{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:800;color:var(--accent);margin-bottom:6px;}
+.result-word{font-family:'JetBrains Mono',monospace;font-size:1.8rem;font-weight:800;letter-spacing:.1em;color:var(--green);margin:8px 0;word-break:break-all;}
+.result-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:16px;}
+
+.note{width:100%;font-size:.66rem;color:var(--muted);text-align:center;line-height:1.5;margin-top:4px;}
+.note a{color:var(--accent);cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- ═══ HOME ═══ -->
+<div class="screen active" id="s-home">
+  <div class="logo">CRACK <span class="crack">IT!</span></div>
+  <div class="logo-sub">Classroom Edition</div>
+  <div class="tagline">A vocabulary code-cracking race. The teacher hides an English word and gives a clue — students compete to crack it first.</div>
+
+  <div class="card tap" onclick="go('s-teacher')">
+    <div class="card-row">
+      <span class="card-emoji">🧑‍🏫</span>
+      <div>
+        <div class="card-title">I'm the teacher</div>
+        <div class="card-desc">Set a secret word + clue, get a room code to give the class, and watch the live leaderboard.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card tap" onclick="go('s-join')">
+    <div class="card-row">
+      <span class="card-emoji">🧑‍🎓</span>
+      <div>
+        <div class="card-title orange">I'm a student</div>
+        <div class="card-desc">Enter the room code your teacher gives you, then race to crack the word.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="background:var(--surface2);">
+    <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How the clues work 💡</div>
+    <div class="card-desc">🗝️ = a letter that's in the <b style="color:var(--green)">right place</b> &nbsp;•&nbsp; 🔓 = a correct letter in the <b style="color:var(--accent)">wrong place</b>. Every guess must have the same number of letters as the secret word.</div>
+  </div>
+</div>
+
+<!-- ═══ TEACHER: CREATE ═══ -->
+<div class="screen" id="s-teacher">
+  <button class="back" onclick="go('s-home')">← Back</button>
+  <div class="logo" style="font-size:1.5rem;margin-top:4px;">Create a round</div>
+
+  <div class="label">Secret word (the answer)</div>
+  <div class="hint">3–10 letters, one word. Students never see this — only the clue.</div>
+  <input class="input" id="t-target" type="text" placeholder="e.g. GARDEN" maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+
+  <div class="label">Clue</div>
+  <div class="hint">A word or short phrase that points to the answer — a synonym, definition, category, or example.</div>
+  <input class="input" id="t-clue" type="text" placeholder="e.g. FLOWERS  or  'where plants grow'" maxlength="40" autocomplete="off" spellcheck="false">
+
+  <div class="label">Guesses allowed</div>
+  <div class="stepper" id="t-guesses">
+    <button class="step-btn" data-g="5" onclick="pickGuesses(5)">5</button>
+    <button class="step-btn sel" data-g="7" onclick="pickGuesses(7)">7</button>
+    <button class="step-btn" data-g="9" onclick="pickGuesses(9)">9</button>
+    <button class="step-btn" data-g="12" onclick="pickGuesses(12)">12</button>
+  </div>
+
+  <div class="err" id="t-err"></div>
+  <button class="btn primary" style="margin-top:10px;" onclick="createRound()">🔐 Start the round</button>
+</div>
+
+<!-- ═══ TEACHER: LIVE BOARD ═══ -->
+<div class="screen" id="s-board">
+  <button class="back" onclick="leaveBoard()">← End round</button>
+  <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
+
+  <div class="roomcode-box">
+    <div class="roomcode-label">Room code</div>
+    <div class="roomcode" id="b-code">----</div>
+    <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
+    <button class="btn ghost" onclick="clearLeaderboard()">🗑️ Reset scores</button>
+  </div>
+
+  <div class="lb-wrap" style="margin-top:4px;">
+    <div class="lb-head">
+      <span class="lb-title">Class leaderboard</span>
+      <span class="lb-live">live</span>
+    </div>
+    <div id="b-lb"></div>
+  </div>
+
+  <div class="note">Students open this same page, tap <b>I'm a student</b>, and enter the room code. The board updates on its own.</div>
+</div>
+
+<!-- ═══ STUDENT: JOIN ═══ -->
+<div class="screen" id="s-join">
+  <button class="back" onclick="go('s-home')">← Back</button>
+  <div class="logo" style="font-size:1.5rem;margin-top:4px;">Join the round</div>
+
+  <div class="label">Room code</div>
+  <input class="input code" id="j-code" type="text" placeholder="ABCD" maxlength="4" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+
+  <div class="label">Your name</div>
+  <input class="input" id="j-name" type="text" placeholder="e.g. Aylin" maxlength="18" autocomplete="off">
+
+  <div class="err" id="j-err"></div>
+  <button class="btn orange" style="margin-top:10px;" onclick="joinRound()">🗝️ Start cracking</button>
+</div>
+
+<!-- ═══ STUDENT: PLAY ═══ -->
+<div class="screen" id="s-play">
+  <div class="ghdr">
+    <span class="glogo">CRACK <span style="color:var(--accent2)">IT!</span></span>
+    <span class="player-pill">Room <b id="p-code">—</b></span>
+  </div>
+
+  <div class="clue-box">
+    <div class="clue-label">Clue</div>
+    <div class="clue-word" id="p-clue">—</div>
+    <div class="clue-len" id="p-len">Crack the hidden word</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><b class="k">🗝️</b> right letter, right place</div>
+    <div class="legend-item"><b class="l">🔓</b> right letter, wrong place</div>
+  </div>
+
+  <div class="attempts">
+    <span class="att-label">Guesses</span>
+    <div class="dots" id="p-dots"></div>
+  </div>
+
+  <div class="guesses" id="p-guesses"><div class="guess-empty">Your guesses will appear here…</div></div>
+
+  <div class="toast" id="p-toast">Type a word the same length as the answer.</div>
+
+  <div class="input-row">
+    <input class="input" id="p-input" type="text" placeholder="your guess…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+    <button class="submit" onclick="submitGuess()">▶</button>
+  </div>
+</div>
+
+<!-- ═══ RESULT OVERLAY ═══ -->
+<div class="overlay" id="overlay">
+  <div class="result-box">
+    <div class="result-emoji" id="r-emoji">🔐</div>
+    <div class="result-title" id="r-title">CRACKED!</div>
+    <div class="result-word" id="r-word"></div>
+    <div class="result-sub" id="r-sub"></div>
+
+    <div class="lb-wrap" style="text-align:left;">
+      <div class="lb-head">
+        <span class="lb-title">Class leaderboard</span>
+        <span class="lb-live">live</span>
+      </div>
+      <div id="r-lb"></div>
+    </div>
+
+    <button class="btn ghost" style="margin-top:14px;" onclick="closeResult()">Close</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  Crack It — Classroom Edition
+//  Core idea:
+//    • a hidden TARGET word + a related CLUE shown to the player
+//    • feedback per guess: 🗝️ keys (right letter, right place)
+//                          🔓 locks (right letter, wrong place)
+//  Classroom features:
+//    • Teacher / Student roles
+//    • Short ROOM CODE instead of a long share code
+//    • Live shared LEADERBOARD via a tiny backend (/api/store),
+//      so every phone/laptop sees the same rooms and scores.
+//    • Room codes namespace everything → many classes can run
+//      at the same time without ever colliding.
+// ════════════════════════════════════════════════════════════
+
+// ── Backend client ──────────────────────────────────────────
+// Talks to the /api/store serverless function. If no backend is
+// reachable (e.g. you opened the file directly, offline), it
+// automatically falls back to a single-device localStorage mode
+// so you can still try the game solo.
+let API_MODE = null; // null → undecided, 'net' → shared backend, 'local' → this-device only
+
+async function api(action, payload) {
+  if (API_MODE === 'local') return localApi(action, payload || {});
+  let resp;
+  try {
+    resp = await fetch('/api/store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ action }, payload || {}))
+    });
+  } catch (netErr) {
+    // Couldn't reach any server at all → assume there is no backend.
+    if (API_MODE === null) {
+      API_MODE = 'local';
+      console.warn('[Crack It] No backend reachable — running in single-device local mode.');
+      return localApi(action, payload || {});
+    }
+    throw netErr;
+  }
+  if (!resp.ok) throw new Error('Server error ' + resp.status);
+  API_MODE = 'net';
+  return resp.json();
+}
+
+// Single-device fallback (no shared leaderboard across devices).
+function localApi(action, p) {
+  const RK = 'wcc.local.room.', SK = 'wcc.local.score.';
+  if (action === 'createRoom') {
+    const k = RK + p.code;
+    if (localStorage.getItem(k)) return { created: false };
+    localStorage.setItem(k, JSON.stringify(p.room));
+    return { created: true };
+  }
+  if (action === 'getRoom') {
+    const v = localStorage.getItem(RK + p.code);
+    return { room: v ? JSON.parse(v) : null };
+  }
+  if (action === 'putScore') {
+    localStorage.setItem(SK + p.code + '.' + p.studentId, JSON.stringify(p.entry));
+    return { ok: true };
+  }
+  if (action === 'getScores') {
+    const pre = SK + p.code + '.', out = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(pre)) { try { out.push(JSON.parse(localStorage.getItem(k))); } catch (e) {} }
+    }
+    return { scores: out };
+  }
+  if (action === 'resetScores') {
+    const pre = SK + p.code + '.', del = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) del.push(k); }
+    del.forEach(k => localStorage.removeItem(k));
+    return { ok: true };
+  }
+  return {};
+}
+
+// ── Screen router ──
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── Helpers ──
+const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+function makeRoomCode(){
+  let c=''; for(let i=0;i<4;i++) c+=ROOM_ALPHABET[Math.floor(Math.random()*ROOM_ALPHABET.length)];
+  return c;
+}
+function clean(w){ return (w||'').toUpperCase().replace(/[^A-Z]/g,''); }
+function showErr(id,msg){ const e=document.getElementById(id); e.textContent=msg; e.classList.add('show'); }
+function hideErr(id){ document.getElementById(id).classList.remove('show'); }
+
+// keys = right letter & right position ; locks = right letter wrong position
+function calcFeedback(guess,target){
+  let keys=0,locks=0;
+  const t=[...target], g=[...guess];
+  const tU=Array(t.length).fill(false), gU=Array(g.length).fill(false);
+  for(let i=0;i<Math.min(g.length,t.length);i++){ if(g[i]===t[i]){keys++;tU[i]=true;gU[i]=true;} }
+  for(let i=0;i<g.length;i++){
+    if(gU[i]) continue;
+    for(let j=0;j<t.length;j++){ if(!tU[j]&&g[i]===t[j]){locks++;tU[j]=true;gU[i]=true;break;} }
+  }
+  return {keys,locks};
+}
+
+// ════════════════════════════════════════════════════════════
+//  TEACHER
+// ════════════════════════════════════════════════════════════
+let chosenGuesses = 7;
+function pickGuesses(n){
+  chosenGuesses=n;
+  document.querySelectorAll('#t-guesses .step-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.g===n));
+}
+
+let boardCode=null, boardPoll=null;
+
+async function createRound(){
+  hideErr('t-err');
+  const target=clean(document.getElementById('t-target').value);
+  const clueRaw=document.getElementById('t-clue').value.trim();
+  if(target.length<3||target.length>10){ showErr('t-err','The secret word must be 3–10 letters (A–Z only).'); return; }
+  if(clueRaw.length<2){ showErr('t-err','Please add a clue for the class.'); return; }
+  if(clueRaw.toUpperCase().includes(target)){ showErr('t-err','The clue gives away the answer — choose a different clue.'); return; }
+
+  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, createdAt:Date.now() };
+
+  // Ask the backend for a fresh, unused room code (createRoom only
+  // succeeds if that code is free — so two classes never share one).
+  let code=null;
+  for(let t=0;t<10;t++){
+    const c=makeRoomCode();
+    let res;
+    try{ res=await api('createRoom',{ code:c, room }); }
+    catch(e){ showErr('t-err','Could not reach the game server. Check your internet and try again.'); return; }
+    if(res && res.created){ code=c; break; }
+  }
+  if(!code){ showErr('t-err','Could not create a room code — please try again.'); return; }
+
+  boardCode=code;
+  document.getElementById('b-code').textContent=code;
+  document.getElementById('b-clue').textContent=clueRaw;
+  document.getElementById('b-len').textContent=target.length;
+  document.getElementById('b-guesses').textContent=chosenGuesses;
+  go('s-board');
+  startBoardPolling();
+}
+
+function startBoardPolling(){
+  stopBoardPolling();
+  refreshBoard();
+  boardPoll=setInterval(refreshBoard, 3500);
+}
+function stopBoardPolling(){ if(boardPoll){ clearInterval(boardPoll); boardPoll=null; } }
+
+async function refreshBoard(){
+  if(!boardCode) return;
+  const scores=await loadScores(boardCode);
+  renderLeaderboard(document.getElementById('b-lb'), scores, null);
+}
+
+function leaveBoard(){ stopBoardPolling(); boardCode=null; go('s-home'); }
+
+async function clearLeaderboard(){
+  if(!boardCode) return;
+  if(!confirm('Reset the leaderboard for this room? Students already playing keep their game, but the board starts fresh.')) return;
+  try{ await api('resetScores',{ code:boardCode }); }catch(e){}
+  refreshBoard();
+}
+
+function copyInvite(btn){
+  if(!boardCode) return;
+  const txt='🔐 Crack It! — crack the hidden English word!\n\nRoom code: '+boardCode+'\nClue: '+document.getElementById('b-clue').textContent+'\n\nOpen the game, tap "I\'m a student", and enter the code.';
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>flashBtn(btn,'✓ Copied!'),()=>alert(txt));
+  } else { alert(txt); }
+}
+function flashBtn(btn,msg){ const old=btn.textContent; btn.textContent=msg; setTimeout(()=>btn.textContent=old,1500); }
+
+// ════════════════════════════════════════════════════════════
+//  SHARED leaderboard read + render
+// ════════════════════════════════════════════════════════════
+async function loadScores(code){
+  let out=[];
+  try{
+    const res=await api('getScores',{ code });
+    out=(res && res.scores) ? res.scores.slice() : [];
+  }catch(e){}
+  // rank: solved first → fewer guesses → faster time
+  out.sort((a,b)=>{
+    if(a.solved!==b.solved) return a.solved?-1:1;
+    if(a.solved){ if(a.guesses!==b.guesses) return a.guesses-b.guesses; return a.timeMs-b.timeMs; }
+    return (a.at||0)-(b.at||0);
+  });
+  return out;
+}
+
+function fmtTime(ms){ const s=Math.round(ms/1000); if(s<60) return s+'s'; return Math.floor(s/60)+'m'+String(s%60).padStart(2,'0'); }
+
+function renderLeaderboard(el, scores, myId){
+  if(!scores.length){
+    el.innerHTML='<div class="lb-empty">No one has finished yet.<br>Waiting for the class…</div>';
+    return;
+  }
+  el.innerHTML='';
+  scores.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='lb-row';
+    const rank=document.createElement('div');
+    rank.className='lb-rank'+(i===0?' r1':i===1?' r2':i===2?' r3':'');
+    rank.textContent=(i+1);
+    const name=document.createElement('div');
+    name.className='lb-name'+(myId&&s.studentId===myId?' me':'');
+    name.textContent=s.name||'—';
+    const stat=document.createElement('div');
+    if(s.solved){ stat.className='lb-stat solved'; stat.textContent='🗝️'+s.guesses+' · '+fmtTime(s.timeMs); }
+    else { stat.className='lb-stat failed'; stat.textContent='✗ '+s.guesses+' tries'; }
+    row.append(rank,name,stat);
+    el.appendChild(row);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  STUDENT
+// ════════════════════════════════════════════════════════════
+let G=null;             // active game state
+let studentId=null;     // unique per device/session
+let playPoll=null;
+
+function getStudentId(){
+  if(studentId) return studentId;
+  studentId='s_'+Math.random().toString(36).slice(2,10);
+  return studentId;
+}
+
+async function joinRound(){
+  hideErr('j-err');
+  const code=clean(document.getElementById('j-code').value).slice(0,4);
+  const name=document.getElementById('j-name').value.trim().slice(0,18);
+  if(code.length!==4){ showErr('j-err','Enter the 4-character room code from your teacher.'); return; }
+  if(!name){ showErr('j-err','Please type your name so you show up on the board.'); return; }
+
+  let room=null;
+  try{ const res=await api('getRoom',{ code }); if(res && res.room) room=res.room; }
+  catch(e){ showErr('j-err','Could not reach the game server. Check your internet and try again.'); return; }
+  if(!room){ showErr('j-err','No round found for code "'+code+'". Double-check with your teacher.'); return; }
+
+  G={
+    code, name, studentId:getStudentId(),
+    target:clean(room.target), clue:room.clue, maxGuesses:room.maxGuesses||7,
+    guesses:[], attempts:0, over:false, startTs:Date.now()
+  };
+  setupPlay();
+  go('s-play');
+  startPlayPolling();
+}
+
+function setupPlay(){
+  document.getElementById('p-code').textContent=G.code;
+  document.getElementById('p-clue').textContent=G.clue;
+  document.getElementById('p-len').textContent='The answer has '+G.target.length+' letters';
+  const inp=document.getElementById('p-input');
+  inp.value=''; inp.maxLength=G.target.length;
+  inp.placeholder=G.target.length+'-letter word…';
+  document.getElementById('p-guesses').innerHTML='<div class="guess-empty">Your guesses will appear here…</div>';
+  setToast('Type a '+G.target.length+'-letter word and press ▶','');
+  renderDots();
+  setTimeout(()=>inp.focus(),150);
+}
+
+function renderDots(){
+  const wrap=document.getElementById('p-dots'); wrap.innerHTML='';
+  for(let i=0;i<G.maxGuesses;i++){
+    const d=document.createElement('div'); d.className='dot'+(i<G.attempts?' used':''); wrap.appendChild(d);
+  }
+}
+
+function setToast(msg,cls){ const t=document.getElementById('p-toast'); t.innerHTML=msg; t.className='toast '+cls; }
+
+function renderGuesses(){
+  const wrap=document.getElementById('p-guesses');
+  if(!G.guesses.length){ wrap.innerHTML='<div class="guess-empty">Your guesses will appear here…</div>'; return; }
+  wrap.innerHTML='';
+  G.guesses.forEach(g=>{
+    const row=document.createElement('div'); row.className='guess-row';
+    const w=document.createElement('div'); w.className='guess-word'; w.textContent=g.word;
+    const fb=document.createElement('div'); fb.className='guess-fb';
+    const kc=g.keys>0?'k':'z', lc=g.locks>0?'l':'z';
+    fb.innerHTML='<span class="'+kc+'">🗝️'+g.keys+'</span>&nbsp;&nbsp;<span class="'+lc+'">🔓'+g.locks+'</span>';
+    row.append(w,fb); wrap.appendChild(row);
+  });
+  wrap.scrollTop=wrap.scrollHeight;
+}
+
+async function submitGuess(){
+  if(!G||G.over) return;
+  const inp=document.getElementById('p-input');
+  const raw=clean(inp.value);
+  if(raw.length!==G.target.length){ setToast('The word must be '+G.target.length+' letters.','warn'); return; }
+  if(G.guesses.some(g=>g.word===raw)){ setToast('You already tried that word.','warn'); return; }
+
+  inp.value='';
+  const fb=calcFeedback(raw,G.target);
+  G.guesses.push({word:raw,keys:fb.keys,locks:fb.locks});
+  G.attempts++;
+  renderGuesses(); renderDots();
+
+  if(raw===G.target){
+    G.over=true;
+    setToast('🔐 CRACKED IT!','win');
+    await saveScore(true);
+    setTimeout(()=>showResult(true),700);
+    return;
+  }
+  if(fb.keys===0&&fb.locks===0) setToast('🗝️0 · 🔓0 — no matching letters','');
+  else setToast('🗝️'+fb.keys+' right place · 🔓'+fb.locks+' wrong place', fb.keys>0?'ok':'warn');
+
+  if(G.attempts>=G.maxGuesses){
+    G.over=true;
+    await saveScore(false);
+    setTimeout(()=>showResult(false),700);
+  } else {
+    setTimeout(()=>inp.focus(),100);
+  }
+}
+
+async function saveScore(solved){
+  const entry={
+    studentId:G.studentId, name:G.name, solved,
+    guesses:G.attempts, timeMs:Date.now()-G.startTs, at:Date.now()
+  };
+  try{ await api('putScore',{ code:G.code, studentId:G.studentId, entry }); }catch(e){}
+}
+
+// ── live leaderboard: only fetch while the result overlay is open ──
+function startPlayPolling(){
+  stopPlayPolling();
+  playPoll=setInterval(async()=>{
+    if(!G) return;
+    const overlayOpen=document.getElementById('overlay').classList.contains('show');
+    if(!overlayOpen) return; // don't hammer the server during active play
+    const scores=await loadScores(G.code);
+    renderLeaderboard(document.getElementById('r-lb'), scores, G.studentId);
+  }, 3500);
+}
+function stopPlayPolling(){ if(playPoll){ clearInterval(playPoll); playPoll=null; } }
+
+async function showResult(solved){
+  const scores=await loadScores(G.code);
+  const myRank=scores.findIndex(s=>s.studentId===G.studentId)+1;
+  document.getElementById('r-emoji').textContent=solved?'🔐':'😔';
+  document.getElementById('r-title').textContent=solved?'CRACKED!':"TIME'S UP";
+  document.getElementById('r-word').textContent=G.target;
+  if(solved){
+    let place=myRank===1?"You're 1st in the class! 🏆":myRank===2?"2nd place! 🥈":myRank===3?"3rd place! 🥉":'You placed #'+myRank;
+    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(Date.now()-G.startTs)+'<br>'+place;
+  }else{
+    document.getElementById('r-sub').innerHTML="You ran out of guesses — the answer is shown above.<br>Better luck next round!";
+  }
+  renderLeaderboard(document.getElementById('r-lb'), scores, G.studentId);
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeResult(){
+  document.getElementById('overlay').classList.remove('show');
+  stopPlayPolling();
+  G=null;
+  go('s-home');
+}
+
+// Enter key submits the current guess
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  if(document.getElementById('s-play').classList.contains('active')) submitGuess();
+});
+</script>
+</body>
+</html>

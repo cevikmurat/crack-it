@@ -1,0 +1,10 @@
+{
+  "name": "crack-it-classroom",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Crack It! — a classroom vocabulary code-cracking game with a shared live leaderboard.",
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
+  }
+}
