@@ -9,7 +9,13 @@
 // ════════════════════════════════════════════════════════════
 import { Redis } from '@upstash/redis';
 
-const redis = Redis.fromEnv();
+// Vercel'in Upstash entegrasyonu bağlantı anahtarlarını KV_REST_API_* adlarıyla
+// enjekte ediyor; @upstash/redis'in fromEnv()'i ise UPSTASH_REDIS_REST_* arar.
+// Hangi ad enjekte edilirse edilsin çalışsın diye ikisini de destekliyoruz.
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
+});
 
 const CODE_RE = /^[A-Z0-9]{3,6}$/;      // room codes are short + alphanumeric
 const ROOM_TTL = 60 * 60 * 24;          // rooms auto-expire after 24h (self-cleaning)
