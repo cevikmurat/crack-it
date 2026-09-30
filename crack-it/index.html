@@ -2467,10 +2467,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 #p-input{font-size:1.35rem;padding:15px 16px;}
 #s-play .submit{font-size:1.2rem;padding:15px 22px;}
 .player-pill{font-size:.74rem;}
-#s-play .ghdr{padding-right:46px;}
+#s-play .ghdr{padding-right:96px;}
 :root{--accent-ink:var(--accent);}
 .theme-toggle{position:fixed;top:12px;right:12px;z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.15);}
 .theme-toggle:hover{border-color:var(--accent);transform:scale(1.05);}
+/* Fullscreen toggle — sits left of the theme button; hidden where the browser can't do fullscreen (e.g. iPhone Safari) */
+.fs-toggle{position:fixed;top:12px;right:62px;z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;display:none;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+.fs-toggle:hover{border-color:var(--accent);transform:scale(1.05);}
+body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 .qr-box{width:100%;background:#ffffff;border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;}
 .qr-cap{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#4a4a5a;text-align:center;}
 .qr-sub{font-size:.66rem;color:#8a8a9a;text-align:center;line-height:1.4;margin-top:-4px;}
@@ -2522,6 +2526,7 @@ body.light .btn.primary{color:#3a2a00;}
 </head>
 <body>
 
+<button class="fs-toggle" id="fs-toggle" onclick="toggleFullscreen()" title="Fullscreen" aria-label="Toggle fullscreen"></button>
 <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch light / dark">☀️</button>
 
 <!-- ═══ HOME ═══ -->
@@ -3232,6 +3237,39 @@ function toggleTheme(){
   let saved=null;
   try{ saved = localStorage.getItem('wcc.theme2'); }catch(e){}
   applyTheme(saved || 'dark', false);   // dark is the default now
+})();
+
+// ── Fullscreen toggle (great on phones — hides the browser bars) ──
+const FS_ENTER='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+const FS_EXIT='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3a2 2 0 0 0 2-2V3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M21 16h-3a2 2 0 0 0-2 2v3"/></svg>';
+function isFullscreen(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+function updateFsIcon(){
+  const btn=document.getElementById('fs-toggle');
+  if(btn) btn.innerHTML = isFullscreen()?FS_EXIT:FS_ENTER;
+}
+function toggleFullscreen(){
+  try{
+    const d=document, el=d.documentElement;
+    if(!isFullscreen()){
+      const req=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(req) req.call(el);
+    }else{
+      const exit=d.exitFullscreen||d.webkitExitFullscreen;
+      if(exit) exit.call(d);
+    }
+  }catch(e){}
+}
+(function initFullscreen(){
+  const btn=document.getElementById('fs-toggle');
+  if(!btn) return;
+  const el=document.documentElement;
+  const supported = (document.fullscreenEnabled||document.webkitFullscreenEnabled) &&
+                    (el.requestFullscreen||el.webkitRequestFullscreen);
+  if(!supported){ btn.style.display='none'; return; }  // e.g. iPhone Safari
+  btn.style.display='flex';
+  updateFsIcon();
+  document.addEventListener('fullscreenchange', updateFsIcon);
+  document.addEventListener('webkitfullscreenchange', updateFsIcon);
 })();
 
 // ── Scan-to-join deep link: a QR / link like ?code=ABCD drops the
