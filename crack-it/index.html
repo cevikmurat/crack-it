@@ -2439,6 +2439,11 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .result-box{background:var(--surface);border:1px solid var(--accent);border-radius:20px;padding:22px 18px;text-align:center;max-width:380px;width:100%;max-height:calc(100vh - 28px);overflow-y:auto;}
 .result-emoji{font-size:2.4rem;margin-bottom:6px;}
 .result-title{font-family:'Poppins',sans-serif;font-size:1.4rem;font-weight:800;color:var(--accent);margin-bottom:6px;}
+/* Win celebration: the result box pops in, and on a correct answer the emoji bounces */
+@keyframes r-pop{0%{transform:scale(.82);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
+.overlay.show .result-box{animation:r-pop .42s cubic-bezier(.2,.9,.3,1.2) both;}
+@keyframes emoji-bounce{0%{transform:scale(.4) rotate(-14deg)}55%{transform:scale(1.28) rotate(8deg)}100%{transform:scale(1) rotate(0)}}
+.overlay.win.show .result-emoji{display:inline-block;animation:emoji-bounce .65s .08s both;}
 .result-word{font-family:'Poppins',sans-serif;font-size:1.8rem;font-weight:800;letter-spacing:.1em;color:var(--green);margin:8px 0;word-break:break-all;}
 .result-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:16px;}
 
@@ -2495,6 +2500,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .qr-box.mini #qr{order:0;width:56px;height:56px;flex:0 0 auto;}
 .qr-box.mini #qr img,.qr-box.mini #qr canvas{width:56px !important;height:56px !important;}
 .qr-box.mini .qr-toggle{order:2;position:static;margin-left:auto;flex:0 0 auto;}
+/* Board layout: stacked on phones, two columns (QR on the right) on wide screens / smart boards */
+.board-cols{width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;}
+.board-main{width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;}
+@media (min-width:760px){
+  #s-board{max-width:960px;}
+  .board-cols{display:grid;grid-template-columns:1fr 300px;align-items:start;gap:22px;}
+  .board-cols .board-main{order:1;min-width:0;}
+  .board-cols .qr-box{order:2;position:sticky;top:16px;}
+  #s-board .qr-toggle{display:none;}            /* no need to shrink when QR has its own column */
+}
 body.light{--bg:#e9edf5;--surface:#ffffff;--surface2:#eef1f8;--text:#1b1d28;--muted:#6c7286;--border:#d8dded;--accent:#eab308;--accent2:#e0531f;--green:#0aa564;--blue:#2f6fd0;--accent-ink:#b45309;}
 body.light::before{background:radial-gradient(ellipse at 20% 10%,rgba(224,90,43,.05) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(47,111,208,.05) 0%,transparent 55%);}
 body.light .logo,body.light .logo .crack,body.light .card-title,body.light .roomcode,body.light .clue-len,body.light .lb-title,body.light .result-title,body.light .glogo,body.light .lb-rank.r1,body.light .toast.win,body.light .toast.warn,body.light .note a{color:#b45309;}
@@ -2573,34 +2588,38 @@ body.light .btn.primary{color:#3a2a00;}
 <div class="screen" id="s-board">
   <button class="back" onclick="leaveBoard()">← End round</button>
 
-  <div class="qr-box" id="qr-box">
-    <div class="qr-cap">📱 Students: scan to join</div>
-    <div id="qr"></div>
-    <div class="qr-sub">Tap the QR to enlarge it for the class · tap again to close. Scanning fills in the room code automatically.</div>
-    <button class="qr-toggle" id="qr-toggle" type="button" onclick="toggleQRMini(event)">Shrink ▾</button>
-  </div>
-
-  <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
-  <div class="roomcode-box">
-    <div class="roomcode-label">Room code</div>
-    <div class="roomcode" id="b-code">----</div>
-    <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
-  </div>
-
-  <div class="btn-row">
-    <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
-    <button class="btn ghost" onclick="clearLeaderboard()">🗑️ Reset scores</button>
-  </div>
-
-  <div class="lb-wrap" style="margin-top:4px;">
-    <div class="lb-head">
-      <span class="lb-title">Class leaderboard</span>
-      <span class="lb-live">live</span>
+  <div class="board-cols">
+    <div class="qr-box" id="qr-box">
+      <div class="qr-cap">📱 Students: scan to join</div>
+      <div id="qr"></div>
+      <div class="qr-sub">Tap the QR to enlarge it for the class · tap again to close. Scanning fills in the room code automatically.</div>
+      <button class="qr-toggle" id="qr-toggle" type="button" onclick="toggleQRMini(event)">Shrink ▾</button>
     </div>
-    <div id="b-lb"></div>
-  </div>
 
-  <div class="note">Students open this same page, tap <b>I'm a student</b>, and enter the room code. The board updates on its own.</div>
+    <div class="board-main">
+      <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
+      <div class="roomcode-box">
+        <div class="roomcode-label">Room code</div>
+        <div class="roomcode" id="b-code">----</div>
+        <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
+        <button class="btn ghost" onclick="clearLeaderboard()">🗑️ Reset scores</button>
+      </div>
+
+      <div class="lb-wrap" style="margin-top:4px;">
+        <div class="lb-head">
+          <span class="lb-title">Class leaderboard</span>
+          <span class="lb-live">live</span>
+        </div>
+        <div id="b-lb"></div>
+      </div>
+
+      <div class="note">Students open this same page, tap <b>I'm a student</b>, and enter the room code. The board updates on its own.</div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ STUDENT: JOIN ═══ -->
@@ -2864,9 +2883,12 @@ let qrMini=false, qrUserToggled=false, qrAutoShrunk=false;
 function applyQRMini(){
   const box=document.getElementById('qr-box');
   const btn=document.getElementById('qr-toggle');
-  if(box) box.classList.toggle('mini', qrMini);
+  // On wide screens the QR sits in its own right-hand column, so it never shrinks there.
+  const wide = window.matchMedia('(min-width:760px)').matches;
+  if(box) box.classList.toggle('mini', qrMini && !wide);
   if(btn) btn.textContent = qrMini ? 'Show QR ▴' : 'Shrink ▾';
 }
+window.addEventListener('resize', applyQRMini);
 function toggleQRMini(ev){
   if(ev) ev.stopPropagation();
   qrUserToggled=true;         // teacher took control → stop auto-shrinking
@@ -2925,7 +2947,7 @@ async function refreshBoard(){
   renderLeaderboard(document.getElementById('b-lb'), scores, null);
   // Once the first student has joined, auto-shrink the QR (only once, and only
   // if the teacher hasn't already chosen a state manually).
-  if(scores && scores.length>=1 && !qrUserToggled && !qrAutoShrunk){
+  if(scores && scores.length>=1 && !qrUserToggled && !qrAutoShrunk && window.matchMedia('(max-width:759px)').matches){
     qrAutoShrunk=true; qrMini=true; applyQRMini();
   }
 }
@@ -3078,6 +3100,7 @@ async function submitGuess(){
   if(raw===G.target){
     G.over=true;
     setToast('🔐 CRACKED IT!','win');
+    launchConfetti();           // 🎉 celebrate the correct answer
     await saveScore(true);
     setTimeout(()=>showResult(true),700);
     return;
@@ -3115,20 +3138,70 @@ function startPlayPolling(){
 }
 function stopPlayPolling(){ if(playPoll){ clearInterval(playPoll); playPoll=null; } }
 
+// Lightweight, dependency-free confetti burst (canvas). Cleans itself up.
+function launchConfetti(){
+  try{
+    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c=document.createElement('canvas');
+    c.setAttribute('aria-hidden','true');
+    c.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+    document.body.appendChild(c);
+    const ctx=c.getContext('2d');
+    const DPR=Math.min(window.devicePixelRatio||1,2);
+    c.width=innerWidth*DPR; c.height=innerHeight*DPR;
+    const colors=['#eab308','#e0531f','#0aa564','#2f6fd0','#ffffff','#f59e0b'];
+    const N=150, P=[];
+    for(let i=0;i<N;i++) P.push({
+      x:Math.random()*c.width,
+      y:(-0.1-Math.random()*0.4)*c.height,
+      r:(4+Math.random()*5)*DPR,
+      vx:(-1+Math.random()*2)*2.2*DPR,
+      vy:(2+Math.random()*4)*DPR,
+      rot:Math.random()*6.28, vr:(-0.2+Math.random()*0.4),
+      col:colors[(Math.random()*colors.length)|0],
+      rect:Math.random()<0.55
+    });
+    const start=performance.now(), DUR=2800;
+    (function frame(t){
+      const el=t-start;
+      ctx.clearRect(0,0,c.width,c.height);
+      for(const p of P){
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.035*DPR; p.rot+=p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.globalAlpha = el>DUR-700 ? Math.max(0,(DUR-el)/700) : 1;
+        ctx.fillStyle=p.col;
+        if(p.rect) ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*0.6);
+        else { ctx.beginPath(); ctx.arc(0,0,p.r/2,0,6.28); ctx.fill(); }
+        ctx.restore();
+      }
+      if(el<DUR) requestAnimationFrame(frame); else c.remove();
+    })(start);
+  }catch(e){}
+}
+
 async function showResult(solved){
-  const scores=await loadScores(G.code);
-  const myRank=scores.findIndex(s=>s.studentId===G.studentId)+1;
+  // Show the result + celebration immediately (don't wait on the network),
+  // then fill in the class ranking once the scores load.
+  document.getElementById('overlay').classList.toggle('win', !!solved);
   document.getElementById('r-emoji').textContent=solved?'🔐':'😔';
   document.getElementById('r-title').textContent=solved?'CRACKED!':"TIME'S UP";
   document.getElementById('r-word').textContent=G.target;
   if(solved){
-    let place=myRank===1?"You're 1st in the class! 🏆":myRank===2?"2nd place! 🥈":myRank===3?"3rd place! 🥉":'You placed #'+myRank;
-    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(Date.now()-G.startTs)+'<br>'+place;
+    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(Date.now()-G.startTs)+'<br>Loading your place…';
   }else{
     document.getElementById('r-sub').innerHTML="You ran out of guesses — the answer is shown above.<br>Better luck next round!";
   }
-  renderLeaderboard(document.getElementById('r-lb'), scores, G.studentId);
   document.getElementById('overlay').classList.add('show');
+
+  let scores=[];
+  try{ scores=await loadScores(G.code); }catch(e){}
+  if(!G) return;                                  // round may have been ended meanwhile
+  if(solved){
+    const myRank=scores.findIndex(s=>s.studentId===G.studentId)+1;
+    let place=myRank===1?"You're 1st in the class! 🏆":myRank===2?"2nd place! 🥈":myRank===3?"3rd place! 🥉":myRank>0?'You placed #'+myRank:'';
+    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(Date.now()-G.startTs)+(place?'<br>'+place:'');
+  }
+  renderLeaderboard(document.getElementById('r-lb'), scores, G.studentId);
 }
 
 function closeResult(){
