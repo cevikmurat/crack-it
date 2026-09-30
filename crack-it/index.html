@@ -2480,6 +2480,16 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 #qz-img{width:min(80vw,80vh);height:min(80vw,80vh);}
 #qz-img img{width:100% !important;height:100% !important;image-rendering:pixelated;}
 .qr-zoom-hint{font-size:.9rem;color:#6c7286;}
+/* Compact (shrunk) QR — kicks in after the round starts and students join */
+.qr-box{position:relative;transition:padding .2s ease;}
+.qr-toggle{position:absolute;top:8px;right:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:999px;cursor:pointer;line-height:1;z-index:2;}
+.qr-toggle:hover{border-color:var(--accent);}
+.qr-box.mini{flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;padding:9px 12px;}
+.qr-box.mini .qr-cap{order:1;text-align:left;flex:1;font-size:.62rem;}
+.qr-box.mini .qr-sub{display:none;}
+.qr-box.mini #qr{order:0;width:56px;height:56px;flex:0 0 auto;}
+.qr-box.mini #qr img,.qr-box.mini #qr canvas{width:56px !important;height:56px !important;}
+.qr-box.mini .qr-toggle{order:2;position:static;margin-left:auto;flex:0 0 auto;}
 body.light{--bg:#e9edf5;--surface:#ffffff;--surface2:#eef1f8;--text:#1b1d28;--muted:#6c7286;--border:#d8dded;--accent:#eab308;--accent2:#e0531f;--green:#0aa564;--blue:#2f6fd0;--accent-ink:#b45309;}
 body.light::before{background:radial-gradient(ellipse at 20% 10%,rgba(224,90,43,.05) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(47,111,208,.05) 0%,transparent 55%);}
 body.light .logo,body.light .logo .crack,body.light .card-title,body.light .roomcode,body.light .clue-len,body.light .lb-title,body.light .result-title,body.light .glogo,body.light .lb-rank.r1,body.light .toast.win,body.light .toast.warn,body.light .note a{color:#b45309;}
@@ -2559,6 +2569,7 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="qr-cap">📱 Students: scan to join</div>
     <div id="qr"></div>
     <div class="qr-sub">Tap the QR to enlarge it for the class · tap again to close. Scanning fills in the room code automatically.</div>
+    <button class="qr-toggle" id="qr-toggle" type="button" onclick="toggleQRMini(event)">Shrink ▾</button>
   </div>
 
   <div class="logo-sub" style="margin-top:4px;">Read this out to the class</div>
@@ -2611,11 +2622,6 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="clue-label">Clue</div>
     <div class="clue-word" id="p-clue">—</div>
     <div class="clue-len" id="p-len">Crack the hidden word</div>
-  </div>
-
-  <div class="legend">
-    <div class="legend-item"><b class="k">🗝️</b> right letter, right place</div>
-    <div class="legend-item"><b class="l">🔓</b> right letter, wrong place</div>
   </div>
 
   <div class="attempts">
@@ -2818,6 +2824,21 @@ async function createRound(){
 
 // Build the scan-to-join QR for the current room (points at this page with the code pre-filled)
 let qrJoinUrl=null, qrRoomCode=null;
+// QR shrink state: after the round starts and a student joins, the QR auto-shrinks
+// so the leaderboard gets the room; the teacher can re-expand it for latecomers.
+let qrMini=false, qrUserToggled=false, qrAutoShrunk=false;
+function applyQRMini(){
+  const box=document.getElementById('qr-box');
+  const btn=document.getElementById('qr-toggle');
+  if(box) box.classList.toggle('mini', qrMini);
+  if(btn) btn.textContent = qrMini ? 'Show QR ▴' : 'Shrink ▾';
+}
+function toggleQRMini(ev){
+  if(ev) ev.stopPropagation();
+  qrUserToggled=true;         // teacher took control → stop auto-shrinking
+  qrMini=!qrMini;
+  applyQRMini();
+}
 function makeQRImg(url, cellSize){
   const qr=qrcode(0,'M'); qr.addData(url); qr.make();
   const wrap=document.createElement('div');
@@ -2833,6 +2854,7 @@ function showBoardQR(code){
   holder.innerHTML=''; holder.onclick=null;
   if(typeof qrcode==='undefined'){ if(box) box.style.display='none'; return; }
   if(box) box.style.display='flex';
+  qrMini=false; qrUserToggled=false; qrAutoShrunk=false; applyQRMini(); // fresh round starts big
   qrRoomCode=code;
   qrJoinUrl=location.origin+location.pathname+'?code='+code;
   try{
@@ -2867,6 +2889,11 @@ async function refreshBoard(){
   if(!boardCode) return;
   const scores=await loadScores(boardCode);
   renderLeaderboard(document.getElementById('b-lb'), scores, null);
+  // Once the first student has joined, auto-shrink the QR (only once, and only
+  // if the teacher hasn't already chosen a state manually).
+  if(scores && scores.length>=1 && !qrUserToggled && !qrAutoShrunk){
+    qrAutoShrunk=true; qrMini=true; applyQRMini();
+  }
 }
 
 function leaveBoard(){ stopBoardPolling(); boardCode=null; go('s-home'); }
@@ -3083,21 +3110,21 @@ document.addEventListener('keydown',e=>{
   if(document.getElementById('s-play').classList.contains('active')) submitGuess();
 });
 
-// ── Light / dark theme (defaults to the clean light theme) ──
-function applyTheme(mode){
-  const light = mode !== 'dark';
+// ── Light / dark theme (defaults to dark; only a manual toggle is remembered) ──
+function applyTheme(mode, save){
+  const light = mode === 'light';
   document.body.classList.toggle('light', light);
   const btn=document.getElementById('theme-toggle');
   if(btn) btn.textContent = light ? '🌙' : '☀️';
-  try{ localStorage.setItem('wcc.theme', light ? 'light' : 'dark'); }catch(e){}
+  if(save){ try{ localStorage.setItem('wcc.theme2', light ? 'light' : 'dark'); }catch(e){} }
 }
 function toggleTheme(){
-  applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+  applyTheme(document.body.classList.contains('light') ? 'dark' : 'light', true);
 }
 (function initTheme(){
-  let saved='light';
-  try{ saved = localStorage.getItem('wcc.theme') || 'light'; }catch(e){}
-  applyTheme(saved);
+  let saved=null;
+  try{ saved = localStorage.getItem('wcc.theme2'); }catch(e){}
+  applyTheme(saved || 'dark', false);   // dark is the default now
 })();
 
 // ── Scan-to-join deep link: a QR / link like ?code=ABCD drops the
