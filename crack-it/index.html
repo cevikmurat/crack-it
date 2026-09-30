@@ -2480,6 +2480,11 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 #qz-img{width:min(80vw,80vh);height:min(80vw,80vh);}
 #qz-img img{width:100% !important;height:100% !important;image-rendering:pixelated;}
 .qr-zoom-hint{font-size:.9rem;color:#6c7286;}
+/* Secret-word input: masked on the smart board, with a peek button for the teacher */
+.secret-wrap{position:relative;width:100%;}
+.secret-wrap .input{padding-right:52px;}
+.secret-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);border:none;background:transparent;font-size:1.2rem;cursor:pointer;line-height:1;padding:6px;border-radius:8px;opacity:.65;}
+.secret-eye:hover,.secret-eye.on{opacity:1;}
 /* Compact (shrunk) QR — kicks in after the round starts and students join */
 .qr-box{position:relative;transition:padding .2s ease;}
 .qr-toggle{position:absolute;top:8px;right:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:999px;cursor:pointer;line-height:1;z-index:2;}
@@ -2542,8 +2547,11 @@ body.light .btn.primary{color:#3a2a00;}
   <div class="logo" style="font-size:1.5rem;margin-top:4px;">Create a round</div>
 
   <div class="label">Secret word (the answer)</div>
-  <div class="hint">3–10 letters, one word. Students never see this — only the clue.</div>
-  <input class="input" id="t-target" type="text" placeholder="e.g. GARDEN" maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+  <div class="hint">3–10 letters, one word. Hidden as •••• so it's safe to type on a smart board — the class can't read it. Tap 👁 to check what you typed.</div>
+  <div class="secret-wrap">
+    <input class="input" id="t-target" type="password" placeholder="type the answer…" maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+    <button type="button" class="secret-eye" id="t-eye" onclick="toggleSecret()" aria-label="Show or hide the secret word" title="Show / hide">👁</button>
+  </div>
 
   <div class="label">Clue</div>
   <div class="hint">A word or short phrase that points to the answer — a synonym, definition, category, or example.</div>
@@ -2753,6 +2761,9 @@ function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
+  // Whenever the setup screen opens, make sure the answer is masked (never leave a
+  // previously-revealed word showing on a projected smart board).
+  if(id==='s-teacher') hideSecret();
 }
 
 // ── Helpers ──
@@ -2788,6 +2799,24 @@ function pickGuesses(n){
   document.querySelectorAll('#t-guesses .step-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.g===n));
 }
 
+// Secret word stays masked (••••) by default so it's safe to type on a projected
+// smart board; the teacher can briefly reveal it to double-check.
+function toggleSecret(){
+  const inp=document.getElementById('t-target');
+  const eye=document.getElementById('t-eye');
+  if(!inp) return;
+  const reveal = inp.type==='password';
+  inp.type = reveal ? 'text' : 'password';
+  if(eye){ eye.textContent = reveal ? '🙈' : '👁'; eye.classList.toggle('on', reveal); }
+  inp.focus();
+}
+function hideSecret(){
+  const inp=document.getElementById('t-target');
+  const eye=document.getElementById('t-eye');
+  if(inp) inp.type='password';
+  if(eye){ eye.textContent='👁'; eye.classList.remove('on'); }
+}
+
 let boardCode=null, boardPoll=null;
 
 async function createRound(){
@@ -2820,6 +2849,11 @@ async function createRound(){
   go('s-board');
   startBoardPolling();
   showBoardQR(code);
+  // Clear the answer from the setup screen and re-mask it, so the previous word
+  // is never sitting on the projector when the teacher sets up the next round.
+  document.getElementById('t-target').value='';
+  document.getElementById('t-clue').value='';
+  hideSecret();
 }
 
 // Build the scan-to-join QR for the current room (points at this page with the code pre-filled)
