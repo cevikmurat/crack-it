@@ -2429,9 +2429,17 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .lb-name{flex:1;font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .lb-name.me{color:var(--blue);}
 .lb-name.me::after{content:' (you)';font-size:.66rem;color:var(--muted);font-weight:400;}
-.lb-stat{font-family:'Poppins',sans-serif;font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+.lb-stat{font-family:'Poppins',sans-serif;font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0;text-align:right;}
 .lb-stat.solved{color:var(--green);}
 .lb-stat.failed{color:var(--accent2);}
+.lb-stat .pts{display:block;font-size:.98rem;font-weight:800;color:var(--accent);}
+.lb-stat .sub{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-top:1px;}
+/* Hint control on the student play screen */
+.hint-row{width:100%;display:flex;align-items:center;gap:10px;}
+.hint-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Poppins',sans-serif;font-size:.74rem;font-weight:700;padding:7px 12px;border-radius:999px;cursor:pointer;flex-shrink:0;}
+.hint-btn:hover:not(:disabled){border-color:var(--accent);}
+.hint-btn:disabled{opacity:.5;cursor:default;}
+.hint-reveal{font-size:.74rem;font-weight:700;color:var(--accent);}
 
 /* ── Win / result overlay ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100;align-items:center;justify-content:center;padding:14px;overflow-y:auto;}
@@ -2656,6 +2664,11 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="clue-len" id="p-len">Crack the hidden word</div>
   </div>
 
+  <div class="hint-row">
+    <button class="hint-btn" id="hint-btn" type="button" onclick="useHint()">💡 Hint</button>
+    <span class="hint-reveal" id="hint-reveal"></span>
+  </div>
+
   <div class="attempts">
     <span class="att-label">Guesses</span>
     <div class="dots" id="p-dots"></div>
@@ -2842,9 +2855,11 @@ function hideSecret(){
 }
 
 let boardCode=null, boardPoll=null;
+let boardSeenSolved=new Set(), boardInit=false;   // track who already solved, to celebrate NEW winners
 
 async function createRound(){
   hideErr('t-err');
+  initAudio();          // unlock sound on this gesture so the board can chime when someone wins
   const target=clean(document.getElementById('t-target').value);
   const clueRaw=document.getElementById('t-clue').value.trim();
   if(target.length<3||target.length>10){ showErr('t-err','The secret word must be 3–10 letters (A–Z only).'); return; }
@@ -2941,6 +2956,7 @@ function closeQRZoom(){ const z=document.getElementById('qr-zoom'); if(z) z.clas
 
 function startBoardPolling(){
   stopBoardPolling();
+  boardSeenSolved=new Set(); boardInit=false;   // fresh round → celebrate every new solver
   refreshBoard();
   boardPoll=setInterval(refreshBoard, 3500);
 }
@@ -2950,6 +2966,18 @@ async function refreshBoard(){
   if(!boardCode) return;
   const scores=await loadScores(boardCode);
   renderLeaderboard(document.getElementById('b-lb'), scores, null);
+
+  // Celebrate on the board the moment a NEW student cracks it: confetti + chime.
+  const solved=scores.filter(s=>s.solved);
+  if(!boardInit){
+    solved.forEach(s=>boardSeenSolved.add(s.studentId));   // first load: just remember, don't fire
+    boardInit=true;
+  } else {
+    let fresh=false;
+    solved.forEach(s=>{ if(!boardSeenSolved.has(s.studentId)){ boardSeenSolved.add(s.studentId); fresh=true; } });
+    if(fresh){ launchConfetti(); playWinChime(); }
+  }
+
   // Once the first student has joined, auto-shrink the QR (only once, and only
   // if the teacher hasn't already chosen a state manually).
   if(scores && scores.length>=1 && !qrUserToggled && !qrAutoShrunk && window.matchMedia('(max-width:759px)').matches){
@@ -2984,16 +3012,67 @@ async function loadScores(code){
     const res=await api('getScores',{ code });
     out=(res && res.scores) ? res.scores.slice() : [];
   }catch(e){}
-  // rank: solved first → fewer guesses → faster time
+  // rank: solved first → higher score → (tiebreak) faster time
   out.sort((a,b)=>{
     if(a.solved!==b.solved) return a.solved?-1:1;
-    if(a.solved){ if(a.guesses!==b.guesses) return a.guesses-b.guesses; return a.timeMs-b.timeMs; }
+    if(a.solved){ const d=entryScore(b)-entryScore(a); if(d) return d; return a.timeMs-b.timeMs; }
     return (a.at||0)-(b.at||0);
   });
   return out;
 }
 
 function fmtTime(ms){ const s=Math.round(ms/1000); if(s<60) return s+'s'; return Math.floor(s/60)+'m'+String(s%60).padStart(2,'0'); }
+
+// ── Scoring: rewards cracking it fast and in few guesses; a hint costs points ──
+//   500 base + up to 300 speed bonus (fades out by 60s) + 50 per unused guess − 150 if a hint was used.
+function calcScore(solved, guesses, timeMs, maxGuesses, hintUsed){
+  if(!solved) return 0;
+  const base=500;
+  const guessBonus=Math.max(0,(maxGuesses||7)-guesses+1)*50;
+  const speedBonus=Math.max(0, Math.round(300 - (timeMs/1000)*5));
+  const hintPenalty=hintUsed?150:0;
+  return Math.max(50, base+guessBonus+speedBonus-hintPenalty);
+}
+// Use the stored score when present; fall back to computing it (e.g. older entries).
+function entryScore(s, maxGuesses){
+  if(typeof s.score==='number') return s.score;
+  return calcScore(s.solved, s.guesses, s.timeMs, maxGuesses, s.hintUsed);
+}
+
+// ── Win chime (WebAudio, no files). Unlocked by a user gesture (join / start round). ──
+let audioCtx=null;
+function initAudio(){
+  try{
+    if(!audioCtx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) audioCtx=new AC(); }
+    if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+  }catch(e){}
+}
+function playWinChime(){
+  try{
+    initAudio(); if(!audioCtx) return;
+    const now=audioCtx.currentTime;
+    [523.25,659.25,783.99,1046.5].forEach((f,i)=>{   // C5 · E5 · G5 · C6 arpeggio
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='triangle'; o.frequency.value=f;
+      const t=now+i*0.10;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.22,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0008,t+0.42);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t+0.45);
+    });
+  }catch(e){}
+}
+
+// ── Hint: reveal the first letter, once per round, for a points penalty ──
+function useHint(){
+  if(!G||G.over||G.hintUsed) return;
+  G.hintUsed=true;
+  const el=document.getElementById('hint-reveal');
+  if(el) el.textContent='Starts with “'+G.target.charAt(0)+'”  ·  −150 pts';
+  const btn=document.getElementById('hint-btn');
+  if(btn){ btn.disabled=true; btn.textContent='💡 Hint used'; }
+}
 
 function renderLeaderboard(el, scores, myId){
   if(!scores.length){
@@ -3010,8 +3089,14 @@ function renderLeaderboard(el, scores, myId){
     name.className='lb-name'+(myId&&s.studentId===myId?' me':'');
     name.textContent=s.name||'—';
     const stat=document.createElement('div');
-    if(s.solved){ stat.className='lb-stat solved'; stat.textContent='🗝️'+s.guesses+' · '+fmtTime(s.timeMs); }
-    else { stat.className='lb-stat failed'; stat.textContent='✗ '+s.guesses+' tries'; }
+    if(s.solved){
+      stat.className='lb-stat solved';
+      const hint=s.hintUsed?' 💡':'';
+      stat.innerHTML='<span class="pts">⭐ '+entryScore(s)+'</span><span class="sub">🗝️'+s.guesses+' · '+fmtTime(s.timeMs)+hint+'</span>';
+    } else {
+      stat.className='lb-stat failed';
+      stat.innerHTML='<span class="pts">0</span><span class="sub">✗ '+s.guesses+' tries</span>';
+    }
     row.append(rank,name,stat);
     el.appendChild(row);
   });
@@ -3045,8 +3130,9 @@ async function joinRound(){
   G={
     code, name, studentId:getStudentId(),
     target:clean(room.target), clue:room.clue, maxGuesses:room.maxGuesses||7,
-    guesses:[], attempts:0, over:false, startTs:Date.now()
+    guesses:[], attempts:0, over:false, startTs:Date.now(), hintUsed:false
   };
+  initAudio();          // unlock sound on this user gesture (for the win chime)
   setupPlay();
   go('s-play');
   startPlayPolling();
@@ -3060,6 +3146,9 @@ function setupPlay(){
   inp.value=''; inp.maxLength=G.target.length;
   inp.placeholder=G.target.length+'-letter word…';
   document.getElementById('p-guesses').innerHTML='<div class="guess-empty">Your guesses will appear here…</div>';
+  // reset the hint for the new round
+  const hb=document.getElementById('hint-btn'); if(hb){ hb.disabled=false; hb.textContent='💡 Hint'; }
+  const hr=document.getElementById('hint-reveal'); if(hr) hr.textContent='';
   setToast('Type a '+G.target.length+'-letter word and press ▶','');
   renderDots();
   setTimeout(()=>inp.focus(),150);
@@ -3106,6 +3195,7 @@ async function submitGuess(){
     G.over=true;
     setToast('🔐 CRACKED IT!','win');
     launchConfetti();           // 🎉 celebrate the correct answer
+    playWinChime();             // 🔔 little victory sound on the student's device
     await saveScore(true);
     setTimeout(()=>showResult(true),700);
     return;
@@ -3123,9 +3213,12 @@ async function submitGuess(){
 }
 
 async function saveScore(solved){
+  const timeMs=Date.now()-G.startTs;
   const entry={
     studentId:G.studentId, name:G.name, solved,
-    guesses:G.attempts, timeMs:Date.now()-G.startTs, at:Date.now()
+    guesses:G.attempts, timeMs, at:Date.now(),
+    hintUsed:!!G.hintUsed,
+    score:calcScore(solved, G.attempts, timeMs, G.maxGuesses, G.hintUsed)
   };
   try{ await api('putScore',{ code:G.code, studentId:G.studentId, entry }); }catch(e){}
 }
