@@ -107,6 +107,8 @@ function sanitizeEntry(e, sid) {
     solved: !!e.solved,
     guesses: Math.max(0, Math.min(99, parseInt(e.guesses, 10) || 0)),
     timeMs: Math.max(0, Math.min(1e9, parseInt(e.timeMs, 10) || 0)),
+    hintUsed: !!e.hintUsed,
+    score: Math.max(0, Math.min(100000, parseInt(e.score, 10) || 0)),
     at: Date.now()
   };
 }
