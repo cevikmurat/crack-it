@@ -2378,10 +2378,10 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .player-pill{font-size:.66rem;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
 .player-pill b{color:var(--blue);}
 
-.clue-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;}
-.clue-label{font-size:.58rem;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;}
-.clue-word{font-family:'Poppins',sans-serif;font-size:1.5rem;font-weight:800;color:var(--green);letter-spacing:.03em;line-height:1.2;word-break:break-word;}
-.clue-len{font-size:.72rem;color:var(--accent);margin-top:6px;letter-spacing:.08em;}
+.clue-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:9px 12px;text-align:center;}
+.clue-label{font-size:.54rem;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.clue-word{font-family:'Poppins',sans-serif;font-size:1.3rem;font-weight:800;color:var(--green);letter-spacing:.03em;line-height:1.15;word-break:break-word;}
+.clue-len{font-size:.66rem;color:var(--accent);margin-top:4px;letter-spacing:.08em;}
 
 .legend{width:100%;display:flex;gap:8px;}
 .legend-item{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 8px;text-align:center;font-size:.62rem;color:var(--muted);line-height:1.3;}
@@ -2465,9 +2465,9 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* ═══════════════════════════════════════════════════════════
    ADD-ONS: bigger student fonts · scan-to-join QR · light theme
    ═══════════════════════════════════════════════════════════ */
-.clue-label{font-size:.72rem;letter-spacing:.2em;}
-.clue-word{font-size:2rem;line-height:1.25;}
-.clue-len{font-size:.95rem;margin-top:8px;}
+.clue-label{font-size:.66rem;letter-spacing:.2em;}
+.clue-word{font-size:1.7rem;line-height:1.2;}
+.clue-len{font-size:.85rem;margin-top:6px;}
 .legend-item{font-size:.74rem;line-height:1.35;padding:9px 8px;}
 .legend-item b{font-size:1.15rem;}
 .att-label{font-size:.72rem;}
@@ -3303,17 +3303,35 @@ function playWinChime(){
     noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
     noise.start(now); noise.stop(now+dur);
 
-    // 3) Flying debris — a few quick metallic/glassy tings.
-    [2600,3400,1900,2200].forEach((f,i)=>{
+    // 3) Pieces scattering + falling to the ground over ~1s (clustered early, thinning out).
+    const pieces=16;
+    for(let i=0;i<pieces;i++){
+      const t=now+0.03+Math.pow(i/pieces,1.3)*1.0;   // most bits early, a few stragglers late
+      const decay=1-(i/pieces);                       // later pieces are quieter
       const o=ctx.createOscillator(), g=ctx.createGain();
-      o.type='square'; o.frequency.value=f;
-      const t=now+0.02+i*0.035;
+      o.type=(i%3===0)?'triangle':'square';
+      o.frequency.value=1500+Math.random()*2700;
+      const vol=0.03+decay*0.09;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.11, t+0.004);
-      g.gain.exponentialRampToValueAtTime(0.0008, t+0.11);
+      g.gain.exponentialRampToValueAtTime(vol, t+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0006, t+0.08+Math.random()*0.07);
       o.connect(g); g.connect(ctx.destination);
-      o.start(t); o.stop(t+0.13);
-    });
+      o.start(t); o.stop(t+0.18);
+    }
+
+    // 4) A soft low "settle" rumble under the falling pieces, fading out by ~1.1s.
+    const dur2=1.1;
+    const buf2=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur2)), ctx.sampleRate);
+    const d2=buf2.getChannelData(0);
+    for(let i=0;i<d2.length;i++){ d2[i]=(Math.random()*2-1)*Math.pow(1-i/d2.length,2); }
+    const n2=ctx.createBufferSource(); n2.buffer=buf2;
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=650;
+    const g2=ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, now+0.05);
+    g2.gain.exponentialRampToValueAtTime(0.17, now+0.13);
+    g2.gain.exponentialRampToValueAtTime(0.0006, now+dur2);
+    n2.connect(lp); lp.connect(g2); g2.connect(ctx.destination);
+    n2.start(now+0.05); n2.stop(now+0.05+dur2);
   }catch(e){}
 }
 
