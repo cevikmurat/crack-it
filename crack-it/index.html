@@ -3303,35 +3303,17 @@ function playWinChime(){
     noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
     noise.start(now); noise.stop(now+dur);
 
-    // 3) Pieces scattering + falling to the ground over ~1s (clustered early, thinning out).
-    const pieces=16;
-    for(let i=0;i<pieces;i++){
-      const t=now+0.03+Math.pow(i/pieces,1.3)*1.0;   // most bits early, a few stragglers late
-      const decay=1-(i/pieces);                       // later pieces are quieter
+    // 3) A quick scatter of glassy debris — short, right on the smash, no long tail.
+    [2600,3400,1900,2200,3000].forEach((f,i)=>{
       const o=ctx.createOscillator(), g=ctx.createGain();
-      o.type=(i%3===0)?'triangle':'square';
-      o.frequency.value=1500+Math.random()*2700;
-      const vol=0.03+decay*0.09;
+      o.type=(i%2)?'square':'triangle'; o.frequency.value=f;
+      const t=now+0.02+i*0.03;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(vol, t+0.004);
-      g.gain.exponentialRampToValueAtTime(0.0006, t+0.08+Math.random()*0.07);
+      g.gain.exponentialRampToValueAtTime(0.11, t+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0008, t+0.10);
       o.connect(g); g.connect(ctx.destination);
-      o.start(t); o.stop(t+0.18);
-    }
-
-    // 4) A soft low "settle" rumble under the falling pieces, fading out by ~1.1s.
-    const dur2=1.1;
-    const buf2=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur2)), ctx.sampleRate);
-    const d2=buf2.getChannelData(0);
-    for(let i=0;i<d2.length;i++){ d2[i]=(Math.random()*2-1)*Math.pow(1-i/d2.length,2); }
-    const n2=ctx.createBufferSource(); n2.buffer=buf2;
-    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=650;
-    const g2=ctx.createGain();
-    g2.gain.setValueAtTime(0.0001, now+0.05);
-    g2.gain.exponentialRampToValueAtTime(0.17, now+0.13);
-    g2.gain.exponentialRampToValueAtTime(0.0006, now+dur2);
-    n2.connect(lp); lp.connect(g2); g2.connect(ctx.destination);
-    n2.start(now+0.05); n2.stop(now+0.05+dur2);
+      o.start(t); o.stop(t+0.12);
+    });
   }catch(e){}
 }
 
