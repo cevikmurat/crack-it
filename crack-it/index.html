@@ -2501,6 +2501,20 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 #qz-img{width:min(80vw,80vh);height:min(80vw,80vh);}
 #qz-img img{width:100% !important;height:100% !important;image-rendering:pixelated;}
 .qr-zoom-hint{font-size:.9rem;color:#6c7286;}
+/* ── Race / crack banner (board + student) + lead toast ── */
+.racing{width:100%;text-align:center;font-size:1rem;font-weight:700;color:var(--muted);padding:6px 10px;}
+.crack-banner{width:100%;text-align:center;background:var(--surface2);border:2px solid var(--accent);border-radius:16px;padding:14px 12px;margin:2px 0;}
+.cb-who{font-size:1.15rem;font-weight:800;color:var(--accent);line-height:1.2;}
+.cb-count{font-family:'Poppins',sans-serif;font-size:3.2rem;font-weight:800;line-height:1.05;margin-top:4px;color:var(--text);}
+.cb-count.hot{color:var(--accent-ink,#e0531f);animation:cbpulse .5s ease-in-out infinite alternate;}
+@keyframes cbpulse{from{transform:scale(1);}to{transform:scale(1.14);}}
+.cb-word{font-size:1.25rem;font-weight:700;margin-top:8px;letter-spacing:2px;}
+.race-banner{width:100%;text-align:center;font-size:.95rem;font-weight:700;color:var(--accent);background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:9px 10px;}
+.race-banner.hot{color:#fff;background:var(--accent-ink,#e0531f);border-color:transparent;animation:cbpulse .5s ease-in-out infinite alternate;}
+.btn.danger{border:1px solid var(--accent);color:var(--accent);background:transparent;}
+.btn.danger:hover{background:var(--surface2);}
+.lead-toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-20px);z-index:10000;background:var(--accent);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .3s,transform .3s;font-size:.95rem;pointer-events:none;max-width:90vw;}
+.lead-toast.show{opacity:1;transform:translate(-50%,0);}
 /* Secret-word input: masked on the smart board, with a peek button for the teacher */
 .secret-wrap{position:relative;width:100%;}
 .secret-wrap .input{padding-right:52px;}
@@ -2574,7 +2588,7 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div class="card" style="background:var(--surface2);">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
-    <div class="card-desc">Crack the word to score: <b>500</b> base <b>+ speed bonus</b> (the faster, the more — up to +300) <b>+ 50 for every guess you didn't need</b>. A <b>💡 hint costs 150</b>. Scores <b>add up across words</b>, so be fast and sure to top the class!</div>
+    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>20 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · a <b>💡 hint costs 600</b>. Points <b>add up across words</b> — top the class!</div>
   </div>
 </div>
 
@@ -2626,6 +2640,14 @@ body.light .btn.primary{color:#3a2a00;}
         <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
       </div>
 
+      <div class="racing" id="b-racing" style="display:none;"></div>
+      <div class="crack-banner" id="b-crack" style="display:none;">
+        <div class="cb-who" id="b-cracker"></div>
+        <div class="cb-count" id="b-count" style="display:none;"></div>
+        <div class="cb-word" id="b-reveal" style="display:none;"></div>
+      </div>
+
+      <button class="btn danger" id="b-skip" type="button" style="margin-top:2px;display:none;" onclick="revealAnswer()">👁 Reveal answer &amp; end word</button>
       <button class="btn primary" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word (same code)</button>
 
       <div class="btn-row">
@@ -2674,6 +2696,8 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="clue-word" id="p-clue">—</div>
     <div class="clue-len" id="p-len">Crack the hidden word</div>
   </div>
+
+  <div class="race-banner" id="p-race" style="display:none;"></div>
 
   <div class="hint-row">
     <button class="hint-btn" id="hint-btn" type="button" onclick="useHint()">💡 Hint</button>
@@ -2869,6 +2893,9 @@ function hideSecret(){
 let boardCode=null, boardPoll=null, boardRound=1;
 let boardSeenSolved=new Set(), boardInit=false;   // track who already solved, to celebrate NEW winners
 let nextWordMode=false;                           // true while entering a follow-up word (keep the same code)
+// Board round state: the current answer, the shared countdown + reveal
+let boardTarget='', boardFirstAt=0, boardRevealed=false, boardTick=null, boardPrevLeader=null;
+let leadToastTs=0;
 
 function goTeacher(){            // start a brand-new game (fresh code)
   nextWordMode=false;
@@ -2907,6 +2934,8 @@ async function createRound(){
     try{ await api('nextWord',{ code:boardCode, room }); }
     catch(e){ showErr('t-err','Could not reach the game server. Check your internet and try again.'); boardRound-=1; return; }
     nextWordMode=false;
+    boardTarget=target;
+    resetBoardWord();                     // fresh countdown/reveal for the new word
     document.getElementById('b-clue').textContent=clueRaw;
     document.getElementById('b-len').textContent=target.length;
     document.getElementById('b-guesses').textContent=chosenGuesses;
@@ -2931,6 +2960,8 @@ async function createRound(){
   if(!code){ showErr('t-err','Could not create a room code — please try again.'); return; }
 
   boardCode=code; boardRound=1;
+  boardTarget=target;
+  resetBoardWord();                       // fresh countdown/reveal for the first word
   document.getElementById('b-code').textContent=code;
   document.getElementById('b-clue').textContent=clueRaw;
   document.getElementById('b-len').textContent=target.length;
@@ -3015,8 +3046,21 @@ function closeQRZoom(){ const z=document.getElementById('qr-zoom'); if(z) z.clas
 function startBoardPolling(){
   stopBoardPolling();
   boardSeenSolved=new Set(); boardInit=false;   // fresh round → celebrate every new solver
+  boardPrevLeader=null;                         // reset lead-change tracking
   refreshBoard();
-  boardPoll=setInterval(refreshBoard, 3500);
+  boardPoll=setInterval(refreshBoard, 3000);
+}
+
+// Reset the board's per-word UI (countdown, winner banner, reveal, skip button).
+function resetBoardWord(){
+  boardFirstAt=0; boardRevealed=false;
+  stopBoardTick();
+  const crack=document.getElementById('b-crack'); if(crack) crack.style.display='none';
+  const who=document.getElementById('b-cracker'); if(who) who.textContent='';
+  const cnt=document.getElementById('b-count'); if(cnt){ cnt.style.display='none'; cnt.textContent=''; }
+  const rev=document.getElementById('b-reveal'); if(rev){ rev.style.display='none'; rev.innerHTML=''; }
+  const racing=document.getElementById('b-racing'); if(racing) racing.style.display='none';
+  const skip=document.getElementById('b-skip'); if(skip) skip.style.display='';
 }
 function stopBoardPolling(){ if(boardPoll){ clearInterval(boardPoll); boardPoll=null; } }
 
@@ -3025,6 +3069,9 @@ async function refreshBoard(){
   const raw=await loadScoresRaw(boardCode);
   const agg=aggregateScores(raw);
   renderLeaderboard(document.getElementById('b-lb'), agg, null);
+
+  // Entries for the CURRENT word, earliest solve first.
+  const curSolved=raw.filter(s=>s.solved && (s.round||1)===boardRound).sort((a,b)=>(a.at||0)-(b.at||0));
 
   // Celebrate on the board the moment a NEW correct answer lands (per word).
   const solvedRaw=raw.filter(s=>s.solved);
@@ -3037,6 +3084,36 @@ async function refreshBoard(){
     if(fresh){ launchConfetti(); playWinChime(); }
   }
 
+  // Live "N racing" counter — only before the first crack of this word.
+  if(!boardRevealed && !curSolved.length){
+    try{
+      const pr=await api('getPings',{ code:boardCode });
+      const racing=(pr&&pr.pings?pr.pings:[]).filter(p=>(p.round||1)===boardRound);
+      const rc=document.getElementById('b-racing');
+      if(rc){
+        if(racing.length){ rc.style.display='block'; rc.innerHTML='🔥 <b>'+racing.length+'</b> '+(racing.length===1?'player racing…':'players racing…'); }
+        else rc.style.display='none';
+      }
+    }catch(e){}
+  }
+
+  // First crack of this word → show the winner + start the shared countdown.
+  if(curSolved.length && !boardFirstAt && !boardRevealed){
+    boardFirstAt=curSolved[0].at||Date.now();
+    const who=document.getElementById('b-cracker');
+    if(who) who.textContent='🏆 '+(curSolved[0].name||'Someone')+' cracked it first!';
+    const crack=document.getElementById('b-crack'); if(crack) crack.style.display='block';
+    const rc=document.getElementById('b-racing'); if(rc) rc.style.display='none';
+    startBoardTick();
+  }
+
+  // Lead-change alert (someone new tops the overall leaderboard).
+  if(agg.length && agg[0].total>0){
+    const leader=agg[0];
+    if(boardPrevLeader!==null && leader.studentId!==boardPrevLeader) boardLeadToast(leader.name);
+    boardPrevLeader=leader.studentId;
+  }
+
   // Once the first student has joined, auto-shrink the QR (only once, and only
   // if the teacher hasn't already chosen a state manually).
   if(agg.length>=1 && !qrUserToggled && !qrAutoShrunk && window.matchMedia('(max-width:759px)').matches){
@@ -3044,7 +3121,47 @@ async function refreshBoard(){
   }
 }
 
-function leaveBoard(){ stopBoardPolling(); boardCode=null; go('s-home'); }
+// Big ticking countdown on the board after the first crack; auto-reveals at 0.
+function startBoardTick(){
+  if(boardTick) return;
+  const upd=()=>{
+    if(!boardCode || !boardFirstAt || boardRevealed){ return; }
+    const left=Math.max(0, Math.ceil((boardFirstAt+WINDOW_MS-Date.now())/1000));
+    const cnt=document.getElementById('b-count');
+    if(cnt){ cnt.style.display='block'; cnt.className='cb-count'+(left<=5?' hot':''); cnt.textContent=left+'s'; }
+    if(left<=0) revealAnswer();
+  };
+  upd(); boardTick=setInterval(upd,250);
+}
+function stopBoardTick(){ if(boardTick){ clearInterval(boardTick); boardTick=null; } }
+
+// Reveal the answer on the board + end the word (auto at 0s, or teacher's button).
+function revealAnswer(){
+  boardRevealed=true;
+  stopBoardTick();
+  const crack=document.getElementById('b-crack'); if(crack) crack.style.display='block';
+  const cnt=document.getElementById('b-count'); if(cnt) cnt.style.display='none';
+  const who=document.getElementById('b-cracker');
+  if(who && !boardFirstAt) who.textContent='⏳ Time — nobody cracked it this time';
+  const rev=document.getElementById('b-reveal');
+  if(rev){ rev.style.display='block'; rev.innerHTML='The word was <b>'+(boardTarget||'—')+'</b>'; }
+  const racing=document.getElementById('b-racing'); if(racing) racing.style.display='none';
+  const skip=document.getElementById('b-skip'); if(skip) skip.style.display='none';
+}
+
+// Floating "⚡ NAME took the lead!" toast on the board.
+function boardLeadToast(name){
+  const now=Date.now(); if(now-leadToastTs<2600) return; leadToastTs=now;
+  try{
+    const t=document.createElement('div'); t.className='lead-toast';
+    t.innerHTML='⚡ <b>'+(name||'—')+'</b> took the lead!';
+    document.body.appendChild(t);
+    requestAnimationFrame(()=>t.classList.add('show'));
+    setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),400); }, 2600);
+  }catch(e){}
+}
+
+function leaveBoard(){ stopBoardPolling(); stopBoardTick(); boardCode=null; go('s-home'); }
 
 async function clearLeaderboard(){
   if(!boardCode) return;
@@ -3072,17 +3189,57 @@ async function loadScoresRaw(code){
     return (res && res.scores) ? res.scores.slice() : [];
   }catch(e){ return []; }
 }
-// Aggregate into a running TOTAL per student (sum across all words played).
+// ════════════════════════════════════════════════════════════
+//  SCORING  (keep WINDOW_MS + numbers in sync with api/store.js)
+//  • Crack the word ............................ 1000
+//  • Be the FIRST to crack ..................... +500
+//  • Podium for the next few (by order in) ..... 2nd +200 · 3rd +150 · 4th +100
+//  • A 💡 hint costs ........................... −600
+//  • Once the first crack lands, everyone else has WINDOW_MS to
+//    get in; solves after that score 0 ("too late").
+// ════════════════════════════════════════════════════════════
+const WINDOW_MS=20000;
+const S_BASE=1000, S_FIRST=500, S_HINT=600;
+function posBonus(pos){ return pos===1?S_FIRST:pos===2?200:pos===3?150:pos===4?100:0; }
+function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+
+// Score every entry of ONE round together (order + window need the whole round).
+// Returns { studentId: {score, pos, first, inWindow, late, hintUsed} }.
+function scoreRound(entries){
+  const out={};
+  (entries||[]).forEach(e=>{ if(e&&e.studentId) out[e.studentId]={score:0,pos:0,first:false,inWindow:false,late:false,hintUsed:!!e.hintUsed}; });
+  const solved=(entries||[]).filter(e=>e&&e.solved).sort((a,b)=>(a.at||0)-(b.at||0));
+  if(!solved.length) return out;
+  const windowEnd=(solved[0].at||0)+WINDOW_MS;
+  let pos=0;
+  solved.forEach(e=>{
+    if((e.at||0)<=windowEnd){
+      pos++;
+      const pen=e.hintUsed?S_HINT:0;
+      out[e.studentId]={ score:Math.max(0, S_BASE+posBonus(pos)-pen), pos, first:pos===1, inWindow:true, late:false, hintUsed:!!e.hintUsed };
+    } else {
+      out[e.studentId]={ score:0, pos:0, first:false, inWindow:false, late:true, hintUsed:!!e.hintUsed };
+    }
+  });
+  return out;
+}
+
+// Aggregate into a running TOTAL per student (sum of each round's score).
 function aggregateScores(raw){
+  const rounds={};
+  (raw||[]).forEach(s=>{ if(!s||!s.studentId) return; const r=s.round||1; (rounds[r]=rounds[r]||[]).push(s); });
   const by={};
-  (raw||[]).forEach(s=>{
-    const id=s.studentId; if(!id) return;
-    if(!by[id]) by[id]={studentId:id, name:s.name||'—', total:0, solved:0, played:0, lastAt:0};
-    const a=by[id];
-    a.total += entryScore(s);
-    if(s.solved) a.solved++;
-    a.played++;
-    if((s.at||0)>=a.lastAt){ a.lastAt=s.at||0; a.name=s.name||a.name; }
+  Object.keys(rounds).forEach(r=>{
+    const rs=scoreRound(rounds[r]);
+    rounds[r].forEach(s=>{
+      const id=s.studentId;
+      if(!by[id]) by[id]={studentId:id, name:s.name||'—', total:0, solved:0, played:0, lastAt:0};
+      const a=by[id];
+      a.total += (rs[id]?rs[id].score:0);
+      if(s.solved) a.solved++;
+      a.played++;
+      if((s.at||0)>=a.lastAt){ a.lastAt=s.at||0; a.name=s.name||a.name; }
+    });
   });
   const list=Object.values(by);
   // rank: higher total → more words solved → earlier finisher
@@ -3093,22 +3250,6 @@ function aggregateScores(raw){
 async function loadScores(code){ return aggregateScores(await loadScoresRaw(code)); }
 
 function fmtTime(ms){ const s=Math.round(ms/1000); if(s<60) return s+'s'; return Math.floor(s/60)+'m'+String(s%60).padStart(2,'0'); }
-
-// ── Scoring: rewards cracking it fast and in few guesses; a hint costs points ──
-//   500 base + up to 300 speed bonus (fades out by 60s) + 50 per unused guess − 150 if a hint was used.
-function calcScore(solved, guesses, timeMs, maxGuesses, hintUsed){
-  if(!solved) return 0;
-  const base=500;
-  const guessBonus=Math.max(0,(maxGuesses||7)-guesses+1)*50;
-  const speedBonus=Math.max(0, Math.round(300 - (timeMs/1000)*5));
-  const hintPenalty=hintUsed?150:0;
-  return Math.max(50, base+guessBonus+speedBonus-hintPenalty);
-}
-// Use the stored score when present; fall back to computing it (e.g. older entries).
-function entryScore(s, maxGuesses){
-  if(typeof s.score==='number') return s.score;
-  return calcScore(s.solved, s.guesses, s.timeMs, maxGuesses, s.hintUsed);
-}
 
 // ── Win chime (WebAudio, no files). Unlocked by a user gesture (join / start round). ──
 let audioCtx=null;
@@ -3140,7 +3281,7 @@ function useHint(){
   if(!G||G.over||G.hintUsed) return;
   G.hintUsed=true;
   const el=document.getElementById('hint-reveal');
-  if(el) el.textContent='Starts with “'+G.target.charAt(0)+'”  ·  −150 pts';
+  if(el) el.textContent='Starts with “'+G.target.charAt(0)+'”  ·  −600 pts';
   const btn=document.getElementById('hint-btn');
   if(btn){ btn.disabled=true; btn.textContent='💡 Hint used'; }
 }
@@ -3174,6 +3315,7 @@ function renderLeaderboard(el, scores, myId){
 let G=null;             // active game state
 let studentId=null;     // unique per device/session
 let playPoll=null;
+let playTick=null;      // 1s ticker for the "someone cracked it!" countdown
 
 function getStudentId(){
   if(studentId) return studentId;
@@ -3210,12 +3352,15 @@ function setupPlay(){
   document.getElementById('p-clue').textContent=G.clue;
   document.getElementById('p-len').textContent='The answer has '+G.target.length+' letters';
   const inp=document.getElementById('p-input');
-  inp.value=''; inp.maxLength=G.target.length;
+  inp.value=''; inp.maxLength=G.target.length; inp.disabled=false;
   inp.placeholder=G.target.length+'-letter word…';
   document.getElementById('p-guesses').innerHTML='<div class="guess-empty">Your guesses will appear here…</div>';
   // reset the hint for the new round
   const hb=document.getElementById('hint-btn'); if(hb){ hb.disabled=false; hb.textContent='💡 Hint'; }
   const hr=document.getElementById('hint-reveal'); if(hr) hr.textContent='';
+  // reset the race countdown for the new round
+  stopRaceCountdown(); if(G) G.raceEnd=0;
+  const rb=document.getElementById('p-race'); if(rb) rb.style.display='none';
   setToast('Type a '+G.target.length+'-letter word and press ▶','');
   renderDots();
   setTimeout(()=>inp.focus(),150);
@@ -3281,13 +3426,16 @@ async function submitGuess(){
 
 async function saveScore(solved){
   const timeMs=Date.now()-G.startTs;
+  const at=Date.now();
   const entry={
     studentId:G.studentId, name:G.name, solved,
-    guesses:G.attempts, timeMs, at:Date.now(),
-    hintUsed:!!G.hintUsed, round:G.round||1,
-    score:calcScore(solved, G.attempts, timeMs, G.maxGuesses, G.hintUsed)
+    guesses:G.attempts, timeMs, at,
+    hintUsed:!!G.hintUsed, round:G.round||1
+    // NOTE: the score is NOT computed here — it depends on who else solved and
+    // when (first / podium / 20s window), so it's worked out from all the
+    // round's entries by scoreRound() on the board and result screens.
   };
-  G.savedTimeMs=timeMs; G.savedScore=entry.score;   // so the result screen shows the exact same numbers
+  G.savedAt=at; G.savedTimeMs=timeMs;
   try{ await api('putScore',{ code:G.code, studentId:G.studentId, entry }); }catch(e){}
 }
 
@@ -3296,13 +3444,17 @@ function startPlayPolling(){
   stopPlayPolling();
   playPoll=setInterval(async()=>{
     if(!G) return;
+    // 0) Heartbeat so the board can show "N racing" (only while still playing).
+    if(!G.over){ try{ api('ping',{ code:G.code, studentId:G.studentId, name:G.name, round:G.round }); }catch(e){} }
     // 1) Did the teacher move the whole class to the next word? If so, auto-advance.
     try{
       const res=await api('getRoom',{ code:G.code });
       const room=res && res.room;
       if(room && (room.round||1)!==G.round){ advanceStudent(room); return; }
+      // 2) Someone cracked it → start the shared 20s countdown for everyone still typing.
+      if(room && (room.round||1)===G.round && room.firstSolvedAt && !G.over){ startRaceCountdown(room.firstSolvedAt); }
     }catch(e){}
-    // 2) While the result overlay is open, keep the class leaderboard fresh.
+    // 3) While the result overlay is open, keep the class leaderboard fresh.
     if(document.getElementById('overlay').classList.contains('show')){
       const agg=await loadScores(G.code);
       renderLeaderboard(document.getElementById('r-lb'), agg, G.studentId);
@@ -3310,8 +3462,38 @@ function startPlayPolling(){
   }, 4000);
 }
 
+// Countdown shown to students still typing after the FIRST person cracks the word.
+// Anchored to the server's firstSolvedAt so the whole class sees the same clock.
+function startRaceCountdown(firstAt){
+  const end=firstAt+WINDOW_MS;
+  if(G) G.raceEnd=end;
+  if(playTick) return;                 // already ticking
+  const el=document.getElementById('p-race');
+  const tick=()=>{
+    if(!G){ stopRaceCountdown(); return; }
+    if(G.over){ if(el) el.style.display='none'; stopRaceCountdown(); return; }
+    const left=Math.max(0, Math.ceil((end-Date.now())/1000));
+    if(el){
+      el.style.display='block';
+      el.className='race-banner'+(left<=5?' hot':'');
+      el.innerHTML= left>0 ? '⚡ Someone cracked it! <b>'+left+'s</b> left — hurry!' : '⏳ Round over — waiting for the next word…';
+    }
+    if(left<=0){
+      // window closed → freeze this student out of the round (board revealed the word)
+      G.over=true;
+      const inp=document.getElementById('p-input'); if(inp) inp.disabled=true;
+      setToast('⏳ Time! The word was revealed on the board — waiting for the next word…','warn');
+      stopRaceCountdown();
+    }
+  };
+  tick();
+  playTick=setInterval(tick,500);
+}
+function stopRaceCountdown(){ if(playTick){ clearInterval(playTick); playTick=null; } }
+
 // Teacher advanced to a new word on the SAME code — jump the student straight in.
 function advanceStudent(room){
+  stopRaceCountdown();
   const ov=document.getElementById('overlay');
   ov.classList.remove('show'); ov.classList.remove('win');
   G.target=clean(room.target); G.clue=room.clue; G.maxGuesses=room.maxGuesses||7;
@@ -3366,39 +3548,50 @@ function launchConfetti(){
 
 async function showResult(solved){
   // Show the result + celebration immediately (don't wait on the network),
-  // then fill in the class ranking once the scores load.
+  // then fill in the exact points + class ranking once the scores load.
   document.getElementById('overlay').classList.toggle('win', !!solved);
   document.getElementById('r-emoji').textContent=solved?'🔐':'😔';
   document.getElementById('r-title').textContent=solved?'CRACKED!':"TIME'S UP";
   document.getElementById('r-word').textContent=G.target;
   const rScore=document.getElementById('r-score');
   if(solved){
-    // Transparent point breakdown — uses the exact time/score that was saved.
-    const timeMs=(typeof G.savedTimeMs==='number')?G.savedTimeMs:(Date.now()-G.startTs);
-    const guessBonus=Math.max(0,(G.maxGuesses||7)-G.attempts+1)*50;
-    const speedBonus=Math.max(0, Math.round(300-(timeMs/1000)*5));
-    const hintPen=G.hintUsed?150:0;
-    const total=(typeof G.savedScore==='number')?G.savedScore:calcScore(true, G.attempts, timeMs, G.maxGuesses, G.hintUsed);
-    let brk='500 base · +'+speedBonus+' speed · +'+guessBonus+' few guesses';
-    if(hintPen) brk+=' · −'+hintPen+' hint';
-    rScore.innerHTML='<span class="big">+'+total+' pts</span><span class="brk">'+brk+'</span>';
+    rScore.innerHTML='<span class="big">+… pts</span><span class="brk">counting the class…</span>';
     rScore.style.display='block';
-    document.getElementById('r-sub').innerHTML='Cracked in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(timeMs)+'<br>Loading your place…';
+    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(G.savedTimeMs||(Date.now()-G.startTs))+'<br>Loading your place…';
   }else{
     rScore.style.display='none';
     document.getElementById('r-sub').innerHTML="You ran out of guesses — the answer is shown above.<br>Better luck next round!";
   }
   document.getElementById('overlay').classList.add('show');
 
-  let scores=[];
-  try{ scores=await loadScores(G.code); }catch(e){}
+  // Fetch the raw entries once, then work out my exact score from the whole round.
+  let raw=[];
+  try{ raw=await loadScoresRaw(G.code); }catch(e){}
   if(!G) return;                                  // round may have been ended meanwhile
+  // Make sure my own just-saved result counts even if it hasn't propagated yet.
+  if(solved && !raw.some(s=>s.studentId===G.studentId && (s.round||1)===(G.round||1))){
+    raw=raw.concat([{studentId:G.studentId,name:G.name,solved:true,at:G.savedAt||Date.now(),hintUsed:!!G.hintUsed,round:G.round||1,guesses:G.attempts,timeMs:G.savedTimeMs||0}]);
+  }
+  const scores=aggregateScores(raw);
+
   if(solved){
+    const mine=scoreRound((raw||[]).filter(s=>(s.round||1)===(G.round||1)))[G.studentId]||{score:0,pos:1,first:true,inWindow:true,hintUsed:!!G.hintUsed};
+    let brk;
+    if(mine.late || !mine.inWindow){
+      brk='too late — the word was already revealed';
+    } else {
+      brk=S_BASE+' crack';
+      if(mine.first) brk+=' · +'+S_FIRST+' FIRST! 🏆';
+      else if(posBonus(mine.pos)>0) brk+=' · +'+posBonus(mine.pos)+' ('+ordinal(mine.pos)+' in)';
+      if(mine.hintUsed) brk+=' · −'+S_HINT+' hint';
+    }
+    rScore.innerHTML='<span class="big">+'+(mine.score||0)+' pts</span><span class="brk">'+brk+'</span>';
+
     const me=scores.find(s=>s.studentId===G.studentId);
     const myRank=scores.findIndex(s=>s.studentId===G.studentId)+1;
     let place=myRank===1?"You're 1st overall! 🏆":myRank===2?"2nd overall! 🥈":myRank===3?"3rd overall! 🥉":myRank>0?'You\'re #'+myRank+' overall':'';
     const tot=me?('  ·  Total ⭐ '+me.total):'';
-    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses · '+fmtTime(Date.now()-G.startTs)+(place?'<br>'+place+tot:'');
+    document.getElementById('r-sub').innerHTML='You cracked it in <b style="color:var(--accent)">'+G.attempts+'</b> guesses'+(place?'<br>'+place+tot:'');
   }
   renderLeaderboard(document.getElementById('r-lb'), scores, G.studentId);
 }
