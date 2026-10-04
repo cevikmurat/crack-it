@@ -2515,6 +2515,12 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 .btn.danger:hover{background:var(--surface2);}
 .lead-toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-20px);z-index:10000;background:var(--accent);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .3s,transform .3s;font-size:.95rem;pointer-events:none;max-width:90vw;}
 .lead-toast.show{opacity:1;transform:translate(-50%,0);}
+/* ── Letter-hint boxes (student) ── */
+.hint-panel{width:100%;background:var(--surface2);border:1px solid var(--green,#0aa564);border-radius:14px;padding:10px 12px;margin-top:8px;text-align:center;}
+.hint-panel-label{font-size:.64rem;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.hint-slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.hslot{min-width:28px;height:40px;display:flex;align-items:flex-end;justify-content:center;font-family:'Poppins',sans-serif;font-size:1.6rem;font-weight:800;color:var(--green,#0aa564);border-bottom:3px solid var(--green,#0aa564);line-height:1;padding:0 3px 3px;}
+.hslot:not(.on){color:transparent;}
 /* Secret-word input: masked on the smart board, with a peek button for the teacher */
 .secret-wrap{position:relative;width:100%;}
 .secret-wrap .input{padding-right:52px;}
@@ -2588,7 +2594,7 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div class="card" style="background:var(--surface2);">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
-    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>20 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · a <b>💡 hint costs 600</b>. Points <b>add up across words</b> — top the class!</div>
+    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>20 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
   </div>
 </div>
 
@@ -2648,7 +2654,7 @@ body.light .btn.primary{color:#3a2a00;}
       </div>
 
       <button class="btn danger" id="b-skip" type="button" style="margin-top:2px;display:none;" onclick="revealAnswer()">👁 Reveal answer &amp; end word</button>
-      <button class="btn primary" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word (same code)</button>
+      <button class="btn primary" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word</button>
 
       <div class="btn-row">
         <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
@@ -2700,8 +2706,12 @@ body.light .btn.primary{color:#3a2a00;}
   <div class="race-banner" id="p-race" style="display:none;"></div>
 
   <div class="hint-row">
-    <button class="hint-btn" id="hint-btn" type="button" onclick="useHint()">💡 Hint</button>
+    <button class="hint-btn" id="hint-btn" type="button" onclick="useHint()">💡 Hint (−400)</button>
     <span class="hint-reveal" id="hint-reveal"></span>
+  </div>
+  <div class="hint-panel" id="hint-panel" style="display:none;">
+    <div class="hint-panel-label">Letter hint</div>
+    <div class="hint-slots" id="hint-slots"></div>
   </div>
 
   <div class="attempts">
@@ -2907,7 +2917,7 @@ function goTeacher(){            // start a brand-new game (fresh code)
 function goNextWord(){           // add the NEXT word to the current room (same code)
   if(!boardCode) return;
   nextWordMode=true;
-  const h=document.getElementById('t-title'); if(h) h.textContent='Next word (same code)';
+  const h=document.getElementById('t-title'); if(h) h.textContent='Next word';
   const b=document.getElementById('t-start'); if(b) b.textContent='➡️ Start next word';
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
   hideSecret();
@@ -3199,26 +3209,28 @@ async function loadScoresRaw(code){
 //    get in; solves after that score 0 ("too late").
 // ════════════════════════════════════════════════════════════
 const WINDOW_MS=20000;
-const S_BASE=1000, S_FIRST=500, S_HINT=600;
+const S_BASE=1000, S_FIRST=500, S_HINT_EACH=400, MAX_HINTS=2;
 function posBonus(pos){ return pos===1?S_FIRST:pos===2?200:pos===3?150:pos===4?100:0; }
+function entryHints(e){ return e.hints!=null ? e.hints : (e.hintUsed?1:0); }  // backward-compatible hint count
 function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
 
 // Score every entry of ONE round together (order + window need the whole round).
 // Returns { studentId: {score, pos, first, inWindow, late, hintUsed} }.
 function scoreRound(entries){
   const out={};
-  (entries||[]).forEach(e=>{ if(e&&e.studentId) out[e.studentId]={score:0,pos:0,first:false,inWindow:false,late:false,hintUsed:!!e.hintUsed}; });
+  (entries||[]).forEach(e=>{ if(e&&e.studentId) out[e.studentId]={score:0,pos:0,first:false,inWindow:false,late:false,hints:entryHints(e)}; });
   const solved=(entries||[]).filter(e=>e&&e.solved).sort((a,b)=>(a.at||0)-(b.at||0));
   if(!solved.length) return out;
   const windowEnd=(solved[0].at||0)+WINDOW_MS;
   let pos=0;
   solved.forEach(e=>{
+    const hc=entryHints(e);
     if((e.at||0)<=windowEnd){
       pos++;
-      const pen=e.hintUsed?S_HINT:0;
-      out[e.studentId]={ score:Math.max(0, S_BASE+posBonus(pos)-pen), pos, first:pos===1, inWindow:true, late:false, hintUsed:!!e.hintUsed };
+      const pen=hc*S_HINT_EACH;
+      out[e.studentId]={ score:Math.max(0, S_BASE+posBonus(pos)-pen), pos, first:pos===1, inWindow:true, late:false, hints:hc };
     } else {
-      out[e.studentId]={ score:0, pos:0, first:false, inWindow:false, late:true, hintUsed:!!e.hintUsed };
+      out[e.studentId]={ score:0, pos:0, first:false, inWindow:false, late:true, hints:hc };
     }
   });
   return out;
@@ -3259,31 +3271,90 @@ function initAudio(){
     if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
   }catch(e){}
 }
+// 🔨 "Cracked it!" = a sledgehammer SMASH (WebAudio, no files):
+//    a low impact thud + a burst of shatter noise + a little flying debris.
 function playWinChime(){
   try{
     initAudio(); if(!audioCtx) return;
-    const now=audioCtx.currentTime;
-    [523.25,659.25,783.99,1046.5].forEach((f,i)=>{   // C5 · E5 · G5 · C6 arpeggio
-      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-      o.type='triangle'; o.frequency.value=f;
-      const t=now+i*0.10;
-      g.gain.setValueAtTime(0,t);
-      g.gain.linearRampToValueAtTime(0.22,t+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0008,t+0.42);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(t); o.stop(t+0.45);
+    const ctx=audioCtx, now=ctx.currentTime;
+
+    // 1) Low impact thud — the hammer landing.
+    const thud=ctx.createOscillator(), tg=ctx.createGain();
+    thud.type='sine';
+    thud.frequency.setValueAtTime(190, now);
+    thud.frequency.exponentialRampToValueAtTime(42, now+0.18);
+    tg.gain.setValueAtTime(0.0001, now);
+    tg.gain.exponentialRampToValueAtTime(0.95, now+0.01);
+    tg.gain.exponentialRampToValueAtTime(0.0008, now+0.38);
+    thud.connect(tg); tg.connect(ctx.destination);
+    thud.start(now); thud.stop(now+0.42);
+
+    // 2) Shatter — a short burst of high-passed noise (the crack).
+    const dur=0.5;
+    const buf=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur)), ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){ d[i]=(Math.random()*2-1)*(1-i/d.length); }  // decaying noise
+    const noise=ctx.createBufferSource(); noise.buffer=buf;
+    const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1100;
+    const ng=ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, now);
+    ng.gain.exponentialRampToValueAtTime(0.7, now+0.006);
+    ng.gain.exponentialRampToValueAtTime(0.0008, now+0.34);
+    noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
+    noise.start(now); noise.stop(now+dur);
+
+    // 3) Flying debris — a few quick metallic/glassy tings.
+    [2600,3400,1900,2200].forEach((f,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type='square'; o.frequency.value=f;
+      const t=now+0.02+i*0.035;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.11, t+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0008, t+0.11);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t+0.13);
     });
   }catch(e){}
 }
 
-// ── Hint: reveal the first letter, once per round, for a points penalty ──
+// ── Hint: reveal a RANDOM letter in its slot; up to MAX_HINTS, each −S_HINT_EACH ──
 function useHint(){
-  if(!G||G.over||G.hintUsed) return;
-  G.hintUsed=true;
+  if(!G||G.over) return;
+  G.hints=G.hints||0; G.hintPos=G.hintPos||[];
+  if(G.hints>=MAX_HINTS) return;
+  // pick a random position that isn't revealed yet
+  const avail=[];
+  for(let i=0;i<G.target.length;i++) if(G.hintPos.indexOf(i)<0) avail.push(i);
+  if(!avail.length) return;
+  G.hintPos.push(avail[Math.floor(Math.random()*avail.length)]);
+  G.hints++;
+  renderHintSlots();
+  updateHintBtn();
   const el=document.getElementById('hint-reveal');
-  if(el) el.textContent='Starts with “'+G.target.charAt(0)+'”  ·  −600 pts';
-  const btn=document.getElementById('hint-btn');
-  if(btn){ btn.disabled=true; btn.textContent='💡 Hint used'; }
+  if(el) el.textContent=G.hints+'/'+MAX_HINTS+'  ·  −'+(G.hints*S_HINT_EACH)+' pts';
+}
+function updateHintBtn(){
+  const btn=document.getElementById('hint-btn'); if(!btn) return;
+  const used=(G&&G.hints)||0;
+  if(used>=MAX_HINTS){ btn.disabled=true; btn.textContent='💡 No hints left'; }
+  else { btn.disabled=false; btn.textContent='💡 Hint (−'+S_HINT_EACH+')'; }
+}
+// Draw the letter-hint boxes: revealed letters sit in their correct slot (green).
+function renderHintSlots(){
+  const panel=document.getElementById('hint-panel');
+  const wrap=document.getElementById('hint-slots');
+  if(!wrap||!G) return;
+  const pos=G.hintPos||[];
+  if(!pos.length){ if(panel) panel.style.display='none'; wrap.innerHTML=''; return; }
+  if(panel) panel.style.display='block';
+  wrap.innerHTML='';
+  for(let i=0;i<G.target.length;i++){
+    const cell=document.createElement('div');
+    const on=pos.indexOf(i)>=0;
+    cell.className='hslot'+(on?' on':'');
+    cell.textContent=on?G.target.charAt(i):'';
+    wrap.appendChild(cell);
+  }
 }
 
 function renderLeaderboard(el, scores, myId){
@@ -3339,7 +3410,7 @@ async function joinRound(){
     code, name, studentId:getStudentId(),
     target:clean(room.target), clue:room.clue, maxGuesses:room.maxGuesses||7,
     round:room.round||1,
-    guesses:[], attempts:0, over:false, startTs:Date.now(), hintUsed:false
+    guesses:[], attempts:0, over:false, startTs:Date.now(), hints:0, hintPos:[]
   };
   initAudio();          // unlock sound on this user gesture (for the win chime)
   setupPlay();
@@ -3356,8 +3427,10 @@ function setupPlay(){
   inp.placeholder=G.target.length+'-letter word…';
   document.getElementById('p-guesses').innerHTML='<div class="guess-empty">Your guesses will appear here…</div>';
   // reset the hint for the new round
-  const hb=document.getElementById('hint-btn'); if(hb){ hb.disabled=false; hb.textContent='💡 Hint'; }
+  if(G){ G.hints=0; G.hintPos=[]; }
+  updateHintBtn();
   const hr=document.getElementById('hint-reveal'); if(hr) hr.textContent='';
+  renderHintSlots();
   // reset the race countdown for the new round
   stopRaceCountdown(); if(G) G.raceEnd=0;
   const rb=document.getElementById('p-race'); if(rb) rb.style.display='none';
@@ -3430,7 +3503,7 @@ async function saveScore(solved){
   const entry={
     studentId:G.studentId, name:G.name, solved,
     guesses:G.attempts, timeMs, at,
-    hintUsed:!!G.hintUsed, round:G.round||1
+    hints:G.hints||0, hintUsed:(G.hints||0)>0, round:G.round||1
     // NOTE: the score is NOT computed here — it depends on who else solved and
     // when (first / podium / 20s window), so it's worked out from all the
     // round's entries by scoreRound() on the board and result screens.
@@ -3498,7 +3571,7 @@ function advanceStudent(room){
   ov.classList.remove('show'); ov.classList.remove('win');
   G.target=clean(room.target); G.clue=room.clue; G.maxGuesses=room.maxGuesses||7;
   G.round=room.round||((G.round||1)+1);
-  G.guesses=[]; G.attempts=0; G.over=false; G.startTs=Date.now(); G.hintUsed=false;
+  G.guesses=[]; G.attempts=0; G.over=false; G.startTs=Date.now(); G.hints=0; G.hintPos=[];
   setupPlay();
   go('s-play');
   setToast('🔑 New word — go!','win');
@@ -3570,12 +3643,12 @@ async function showResult(solved){
   if(!G) return;                                  // round may have been ended meanwhile
   // Make sure my own just-saved result counts even if it hasn't propagated yet.
   if(solved && !raw.some(s=>s.studentId===G.studentId && (s.round||1)===(G.round||1))){
-    raw=raw.concat([{studentId:G.studentId,name:G.name,solved:true,at:G.savedAt||Date.now(),hintUsed:!!G.hintUsed,round:G.round||1,guesses:G.attempts,timeMs:G.savedTimeMs||0}]);
+    raw=raw.concat([{studentId:G.studentId,name:G.name,solved:true,at:G.savedAt||Date.now(),hints:G.hints||0,round:G.round||1,guesses:G.attempts,timeMs:G.savedTimeMs||0}]);
   }
   const scores=aggregateScores(raw);
 
   if(solved){
-    const mine=scoreRound((raw||[]).filter(s=>(s.round||1)===(G.round||1)))[G.studentId]||{score:0,pos:1,first:true,inWindow:true,hintUsed:!!G.hintUsed};
+    const mine=scoreRound((raw||[]).filter(s=>(s.round||1)===(G.round||1)))[G.studentId]||{score:0,pos:1,first:true,inWindow:true,hints:(G.hints||0)};
     let brk;
     if(mine.late || !mine.inWindow){
       brk='too late — the word was already revealed';
@@ -3583,7 +3656,7 @@ async function showResult(solved){
       brk=S_BASE+' crack';
       if(mine.first) brk+=' · +'+S_FIRST+' FIRST! 🏆';
       else if(posBonus(mine.pos)>0) brk+=' · +'+posBonus(mine.pos)+' ('+ordinal(mine.pos)+' in)';
-      if(mine.hintUsed) brk+=' · −'+S_HINT+' hint';
+      const hc=G.hints||0; if(hc) brk+=' · −'+(hc*S_HINT_EACH)+' hint'+(hc>1?'s':'');
     }
     rScore.innerHTML='<span class="big">+'+(mine.score||0)+' pts</span><span class="brk">'+brk+'</span>';
 
