@@ -173,6 +173,7 @@ function sanitizeEntry(e, sid) {
     guesses: Math.max(0, Math.min(99, parseInt(e.guesses, 10) || 0)),
     timeMs: Math.max(0, Math.min(1e9, parseInt(e.timeMs, 10) || 0)),
     hintUsed: !!e.hintUsed,
+    hints: Math.max(0, Math.min(5, parseInt(e.hints, 10) || 0)),
     round,
     at: Date.now()   // server-stamped → reliable ordering across devices
   };
