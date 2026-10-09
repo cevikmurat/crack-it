@@ -3107,10 +3107,24 @@ function openQRZoom(){
 }
 function closeQRZoom(){ const z=document.getElementById('qr-zoom'); if(z) z.classList.remove('show'); }
 
+// Keep the board SCREEN awake while a game is running, so the computer doesn't
+// sleep / screensaver during a countdown (which would suspend the audio).
+let wakeLock=null;
+async function acquireWakeLock(){
+  try{
+    if('wakeLock' in navigator && !wakeLock){
+      wakeLock=await navigator.wakeLock.request('screen');
+      if(wakeLock&&wakeLock.addEventListener) wakeLock.addEventListener('release',()=>{ wakeLock=null; });
+    }
+  }catch(e){ wakeLock=null; }
+}
+function releaseWakeLock(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
+
 function startBoardPolling(){
   stopBoardPolling();
   boardSeenSolved=new Set(); boardInit=false;   // fresh round → celebrate every new solver
   boardPrevLeader=null;                         // reset lead-change tracking
+  acquireWakeLock();                            // keep the board screen on (no audio suspend)
   boardMusic.start();                           // soft ambient music on the board
   refreshBoard();
   boardPoll=setInterval(refreshBoard, 3000);
@@ -3261,7 +3275,7 @@ function boardLeadToast(name){
   }catch(e){}
 }
 
-function leaveBoard(){ stopBoardPolling(); stopBoardTick(); boardMusic.stop(); boardCode=null; go('s-home'); }
+function leaveBoard(){ stopBoardPolling(); stopBoardTick(); boardMusic.stop(); releaseWakeLock(); boardCode=null; go('s-home'); }
 
 async function clearLeaderboard(){
   if(!boardCode) return;
@@ -3527,6 +3541,8 @@ const boardMusic=(function(){
     tension(){ /* Kahoot-style loop stays steady — no separate tension layer */ },
     toggle(){ on=!on; if(on) startSeq(); else stopSeq(); return on; },
     isOn(){ return on; },
+    // Called when the board tab becomes visible again — resume audio cleanly.
+    resume(){ const ctx=c(); if(!ctx) return; try{ if(ctx.state==='suspended') ctx.resume(); }catch(e){} if(playing){ nextTime=ctx.currentTime+0.1; } },
     // Briefly dip the music so the sledgehammer smash punches through, then restore.
     duck(){
       const ctx=c(); if(!ctx||!master) return; const t=ctx.currentTime;
@@ -3539,6 +3555,8 @@ function toggleBoardMusic(){
   const nowOn=boardMusic.toggle();
   if(btn) btn.textContent = nowOn ? '🎵 Music: on' : '🔇 Music: off';
 }
+// When the teacher returns to the board tab, resume the music cleanly.
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && boardCode){ boardMusic.resume(); acquireWakeLock(); } });
 
 // ── Hint: reveal a RANDOM letter in its slot; up to MAX_HINTS, each −S_HINT_EACH ──
 function useHint(){
@@ -3619,7 +3637,13 @@ let playTick=null;      // 1s ticker for the "someone cracked it!" countdown
 
 function getStudentId(){
   if(studentId) return studentId;
-  studentId='s_'+Math.random().toString(36).slice(2,10);
+  // Remember the id in this browser so a reload / reconnect keeps the same
+  // player (and their accumulated score) instead of starting over.
+  try{ studentId = localStorage.getItem('wcc.sid') || null; }catch(e){}
+  if(!studentId){
+    studentId='s_'+Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem('wcc.sid', studentId); }catch(e){}
+  }
   return studentId;
 }
 
