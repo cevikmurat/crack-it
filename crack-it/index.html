@@ -2371,6 +2371,10 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .roomcode{font-family:'Poppins',sans-serif;font-size:3rem;font-weight:800;color:var(--accent);letter-spacing:.18em;line-height:1;}
 .roomcode-clue{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:.78rem;color:var(--muted);}
 .roomcode-clue b{color:var(--green);font-family:'Poppins',sans-serif;letter-spacing:.04em;}
+.clue-strip{width:100%;text-align:center;font-size:.82rem;color:var(--muted);padding:3px 0 5px;line-height:1.4;}
+.clue-strip b{color:var(--green);font-family:'Poppins',sans-serif;letter-spacing:.04em;}
+.qr-code-line{font-size:.9rem;font-weight:700;color:#4a4a5a;text-align:center;letter-spacing:.02em;margin-top:-2px;}
+.qr-code-line b{color:#111;font-family:'Poppins',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:.16em;}
 
 /* ── Game / play ── */
 .ghdr{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;}
@@ -2549,6 +2553,8 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 .qr-box.mini{flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;padding:9px 12px;}
 .qr-box.mini .qr-cap{order:1;text-align:left;flex:1;font-size:.62rem;}
 .qr-box.mini .qr-sub{display:none;}
+.qr-box.mini .qr-code-line{font-size:.6rem;order:3;}
+.qr-box.mini .qr-code-line b{font-size:.8rem;}
 .qr-box.mini #qr{order:0;width:56px;height:56px;flex:0 0 auto;}
 .qr-box.mini #qr img,.qr-box.mini #qr canvas{width:56px !important;height:56px !important;}
 .qr-box.mini .qr-toggle{order:2;position:static;margin-left:auto;flex:0 0 auto;}
@@ -2610,7 +2616,7 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div class="card" style="background:var(--surface2);">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
-    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>20 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
+    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>30 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
   </div>
 </div>
 
@@ -2638,6 +2644,14 @@ body.light .btn.primary{color:#3a2a00;}
     <button class="step-btn" data-g="12" onclick="pickGuesses(12)">12</button>
   </div>
 
+  <div class="label" id="t-words-label">Words this game</div>
+  <div class="stepper" id="t-words">
+    <button class="step-btn" data-w="5" onclick="pickWords(5)">5</button>
+    <button class="step-btn sel" data-w="10" onclick="pickWords(10)">10</button>
+    <button class="step-btn" data-w="15" onclick="pickWords(15)">15</button>
+    <button class="step-btn" data-w="0" onclick="pickWords(0)" title="No limit">∞</button>
+  </div>
+
   <div class="err" id="t-err"></div>
   <button class="btn primary" id="t-start" style="margin-top:10px;" onclick="createRound()">🔐 Start the round</button>
 </div>
@@ -2650,17 +2664,14 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="qr-box" id="qr-box">
       <div class="qr-cap">📱 Students: scan to join</div>
       <div id="qr"></div>
-      <div class="qr-sub">Tap the QR to enlarge it for the class · tap again to close. Scanning fills in the room code automatically.</div>
+      <div class="qr-code-line">Room <b id="b-code">----</b></div>
+      <div class="qr-sub">Tap the QR to enlarge it · scanning fills in the code. Or type the code above.</div>
       <button class="qr-toggle" id="qr-toggle" type="button" onclick="toggleQRMini(event)">Shrink ▾</button>
     </div>
 
     <div class="board-main">
       <div class="logo-sub" style="margin-top:4px;">Read this out to the class <span class="word-badge" id="b-round" style="display:none;"></span></div>
-      <div class="roomcode-box">
-        <div class="roomcode-label">Room code</div>
-        <div class="roomcode" id="b-code">----</div>
-        <div class="roomcode-clue">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
-      </div>
+      <div class="clue-strip">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
 
       <div class="racing" id="b-racing" style="display:none;"></div>
       <div class="crack-banner" id="b-crack" style="display:none;">
@@ -2676,6 +2687,7 @@ body.light .btn.primary{color:#3a2a00;}
         <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
         <button class="btn ghost" onclick="clearLeaderboard()">🗑️ Reset scores</button>
       </div>
+      <button class="btn ghost" id="b-music" type="button" onclick="toggleBoardMusic()">🎵 Music: on</button>
 
       <div class="podium" id="b-podium" style="display:none;">
         <div class="pod pod2" id="pod2">
@@ -2916,6 +2928,11 @@ function pickGuesses(n){
   chosenGuesses=n;
   document.querySelectorAll('#t-guesses .step-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.g===n));
 }
+let chosenWords = 10, boardTotalWords = 10;   // how many words this whole game (0 = no limit)
+function pickWords(n){
+  chosenWords=n;
+  document.querySelectorAll('#t-words .step-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.w===n));
+}
 
 // Secret word stays masked (••••) by default so it's safe to type on a projected
 // smart board; the teacher can briefly reveal it to double-check.
@@ -2946,6 +2963,7 @@ function goTeacher(){            // start a brand-new game (fresh code)
   nextWordMode=false;
   const h=document.getElementById('t-title'); if(h) h.textContent='Create a round';
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
+  ['t-words','t-words-label'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
   go('s-teacher');
 }
@@ -2954,6 +2972,7 @@ function goNextWord(){           // add the NEXT word to the current room (same 
   nextWordMode=true;
   const h=document.getElementById('t-title'); if(h) h.textContent='Next word';
   const b=document.getElementById('t-start'); if(b) b.textContent='➡️ Start next word';
+  ['t-words','t-words-label'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='none';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
   hideSecret();
   go('s-teacher');
@@ -2975,7 +2994,7 @@ async function createRound(){
   // ── Follow-up word: keep the SAME code, just advance the round ──
   if(nextWordMode && boardCode){
     boardRound += 1;
-    const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, createdAt:Date.now() };
+    const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
     try{ await api('nextWord',{ code:boardCode, room }); }
     catch(e){ showErr('t-err','Could not reach the game server. Check your internet and try again.'); boardRound-=1; return; }
     nextWordMode=false;
@@ -2993,7 +3012,8 @@ async function createRound(){
   }
 
   // ── Brand-new game: get a fresh, unused room code (round 1) ──
-  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:1, createdAt:Date.now() };
+  boardTotalWords=chosenWords;
+  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:1, totalWords:chosenWords, createdAt:Date.now() };
   let code=null;
   for(let t=0;t<10;t++){
     const c=makeRoomCode();
@@ -3025,8 +3045,9 @@ async function createRound(){
 function updateRoundBadge(){
   const el=document.getElementById('b-round');
   if(!el) return;
-  if(boardRound>1){ el.textContent='Word '+boardRound; el.style.display='inline-block'; }
-  else el.style.display='none';
+  const n=boardTotalWords||0;
+  el.textContent = n>0 ? ('Word '+boardRound+' / '+n) : ('Word '+boardRound);
+  el.style.display='inline-block';
 }
 
 // Build the scan-to-join QR for the current room (points at this page with the code pre-filled)
@@ -3092,6 +3113,7 @@ function startBoardPolling(){
   stopBoardPolling();
   boardSeenSolved=new Set(); boardInit=false;   // fresh round → celebrate every new solver
   boardPrevLeader=null;                         // reset lead-change tracking
+  boardMusic.start();                           // soft ambient music on the board
   refreshBoard();
   boardPoll=setInterval(refreshBoard, 3000);
 }
@@ -3100,6 +3122,7 @@ function startBoardPolling(){
 function resetBoardWord(){
   boardFirstAt=0; boardRevealed=false;
   stopBoardTick();
+  boardMusic.tension(false);
   const crack=document.getElementById('b-crack'); if(crack) crack.style.display='none';
   const who=document.getElementById('b-cracker'); if(who) who.textContent='';
   const cnt=document.getElementById('b-count'); if(cnt){ cnt.style.display='none'; cnt.textContent=''; }
@@ -3172,7 +3195,9 @@ function startBoardTick(){
   if(boardTick) return;
   const upd=()=>{
     if(!boardCode || !boardFirstAt || boardRevealed){ return; }
-    const left=Math.max(0, Math.ceil((boardFirstAt+WINDOW_MS-Date.now())/1000));
+    const remMs=Math.max(0, boardFirstAt+WINDOW_MS-Date.now());
+    const left=Math.ceil(remMs/1000);
+    boardMusic.tension(true, 1-(remMs/WINDOW_MS));   // music ramps up as time runs out
     const cnt=document.getElementById('b-count');
     if(cnt){ cnt.style.display='block'; cnt.className='cb-count'+(left<=5?' hot':''); cnt.textContent=left+'s'; }
     if(left<=0) revealAnswer();
@@ -3185,6 +3210,7 @@ function stopBoardTick(){ if(boardTick){ clearInterval(boardTick); boardTick=nul
 function revealAnswer(){
   boardRevealed=true;
   stopBoardTick();
+  boardMusic.tension(false);   // tension ends; soft pad continues
   const crack=document.getElementById('b-crack'); if(crack) crack.style.display='block';
   const cnt=document.getElementById('b-count'); if(cnt) cnt.style.display='none';
   const who=document.getElementById('b-cracker');
@@ -3237,7 +3263,7 @@ function boardLeadToast(name){
   }catch(e){}
 }
 
-function leaveBoard(){ stopBoardPolling(); stopBoardTick(); boardCode=null; go('s-home'); }
+function leaveBoard(){ stopBoardPolling(); stopBoardTick(); boardMusic.stop(); boardCode=null; go('s-home'); }
 
 async function clearLeaderboard(){
   if(!boardCode) return;
@@ -3274,7 +3300,7 @@ async function loadScoresRaw(code){
 //  • Once the first crack lands, everyone else has WINDOW_MS to
 //    get in; solves after that score 0 ("too late").
 // ════════════════════════════════════════════════════════════
-const WINDOW_MS=20000;
+const WINDOW_MS=30000;
 const S_BASE=1000, S_FIRST=500, S_HINT_EACH=400, MAX_HINTS=2;
 function posBonus(pos){ return pos===1?S_FIRST:pos===2?200:pos===3?150:pos===4?100:0; }
 function entryHints(e){ return e.hints!=null ? e.hints : (e.hintUsed?1:0); }  // backward-compatible hint count
@@ -3342,6 +3368,7 @@ function initAudio(){
 function playWinChime(){
   try{
     initAudio(); if(!audioCtx) return;
+    try{ boardMusic.duck(); }catch(e){}   // dip the board music so the smash pops
     const ctx=audioCtx, now=ctx.currentTime;
 
     // 1) Low impact thud — the hammer landing (punchier, with a deep sub).
@@ -3409,6 +3436,98 @@ function playWinChime(){
   }catch(e){}
 }
 
+// ════════════════════════════════════════════════════════════
+//  BOARD MUSIC (WebAudio, no files) — plays only on the teacher's board.
+//   • a very soft ambient pad the whole game
+//   • a tension layer (rising drone + accelerating tick) during the countdown
+//   • a 🎵 on/off toggle on the board
+// ════════════════════════════════════════════════════════════
+const boardMusic=(function(){
+  let on=true;                 // default on (teacher can mute on the board)
+  let padOn=false, padGain=null, padNodes=[];
+  let tickOn=false, tickTimer=null, curIntensity=0;
+  let droneOn=false, droneGain=null, droneNodes=[];
+  function c(){ initAudio(); return audioCtx; }
+
+  function startPad(){
+    const ctx=c(); if(!ctx||padOn) return; padOn=true;
+    padGain=ctx.createGain(); padGain.gain.value=0.0001; padGain.connect(ctx.destination);
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=650; lp.connect(padGain);
+    [110,164.81,220].forEach((f,i)=>{                 // soft A2 · E3 · A3 chord
+      const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=ctx.createGain(); g.gain.value=i===0?0.5:0.3;
+      o.connect(g); g.connect(lp); o.start(); padNodes.push(o,g);
+    });
+    const lfo=ctx.createOscillator(); lfo.type='sine'; lfo.frequency.value=0.1;   // gentle drift
+    const lfoG=ctx.createGain(); lfoG.gain.value=0.004;
+    lfo.connect(lfoG); lfoG.connect(padGain.gain); lfo.start(); padNodes.push(lfo,lfoG);
+    padGain.gain.setTargetAtTime(0.028, ctx.currentTime, 1.2);   // fade in, stays subtle
+  }
+  function stopPad(){
+    const ctx=c();
+    if(padGain&&ctx){ try{ padGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4); }catch(e){} }
+    setTimeout(()=>{ padNodes.forEach(n=>{ try{ n.stop&&n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
+      padNodes=[]; if(padGain){ try{padGain.disconnect();}catch(e){} padGain=null; } padOn=false; }, 500);
+  }
+  function playTick(){
+    const ctx=c(); if(!ctx||!on) return;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='square'; o.frequency.value=1500;
+    const t=ctx.currentTime;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.05+0.06*curIntensity,t+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0005,t+0.05);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.06);
+  }
+  function tickLoop(){
+    if(!tickOn) return;
+    playTick();
+    const interval=520-curIntensity*380;             // 520ms (calm) → 140ms (frantic)
+    tickTimer=setTimeout(tickLoop, Math.max(120, interval));
+  }
+  function startDrone(){
+    const ctx=c(); if(!ctx||droneOn) return; droneOn=true;
+    droneGain=ctx.createGain(); droneGain.gain.value=0.0001; droneGain.connect(ctx.destination);
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=380; lp.connect(droneGain);
+    const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=55;
+    o.connect(lp); o.start(); droneNodes.push(o,lp);
+  }
+  function stopDrone(){
+    const ctx=c();
+    if(droneGain&&ctx){ try{ droneGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.3); }catch(e){} }
+    setTimeout(()=>{ droneNodes.forEach(n=>{ try{ n.stop&&n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
+      droneNodes=[]; if(droneGain){ try{droneGain.disconnect();}catch(e){} droneGain=null; } droneOn=false; }, 400);
+  }
+  return {
+    start(){ if(on) startPad(); },
+    stop(){ tickOn=false; if(tickTimer) clearTimeout(tickTimer); stopDrone(); stopPad(); },
+    // intensity 0..1 (closer to 0s → higher). active=false ends the tension layer.
+    tension(active, intensity){
+      curIntensity=Math.max(0,Math.min(1,intensity||0));
+      if(active && on){
+        startDrone();
+        const ctx=c(); if(droneGain&&ctx) droneGain.gain.setTargetAtTime(0.02+0.06*curIntensity, ctx.currentTime, 0.25);
+        if(!tickOn){ tickOn=true; tickLoop(); }
+      } else {
+        tickOn=false; if(tickTimer) clearTimeout(tickTimer); stopDrone();
+      }
+    },
+    toggle(){ on=!on; if(on) startPad(); else this.stop(); return on; },
+    isOn(){ return on; },
+    // Briefly dip the music so the sledgehammer smash punches through, then restore.
+    duck(){
+      const ctx=c(); if(!ctx) return; const t=ctx.currentTime;
+      if(padGain){ try{ padGain.gain.cancelScheduledValues(t); padGain.gain.setTargetAtTime(0.005,t,0.02); padGain.gain.setTargetAtTime(0.028,t+0.55,0.3); }catch(e){} }
+      if(droneGain){ try{ droneGain.gain.cancelScheduledValues(t); droneGain.gain.setTargetAtTime(0.004,t,0.02); droneGain.gain.setTargetAtTime(0.02+0.06*curIntensity,t+0.55,0.3); }catch(e){} }
+    }
+  };
+})();
+function toggleBoardMusic(){
+  const btn=document.getElementById('b-music');
+  const nowOn=boardMusic.toggle();
+  if(btn) btn.textContent = nowOn ? '🎵 Music: on' : '🔇 Music: off';
+}
+
 // ── Hint: reveal a RANDOM letter in its slot; up to MAX_HINTS, each −S_HINT_EACH ──
 function useHint(){
   if(!G||G.over) return;
@@ -3437,16 +3556,20 @@ function renderHintSlots(){
   const wrap=document.getElementById('hint-slots');
   if(!wrap||!G) return;
   const pos=G.hintPos||[];
-  if(!pos.length){ if(panel) panel.style.display='none'; wrap.innerHTML=''; return; }
-  if(panel) panel.style.display='block';
-  wrap.innerHTML='';
+  if(!pos.length){ if(panel) panel.style.display='none'; wrap.textContent=''; return; }
+  // Build the whole row off-screen first, then swap it in and show the panel —
+  // avoids a half-drawn/empty flash while the letters are being placed.
+  const frag=document.createDocumentFragment();
   for(let i=0;i<G.target.length;i++){
     const cell=document.createElement('div');
     const on=pos.indexOf(i)>=0;
     cell.className='hslot'+(on?' on':'');
     cell.textContent=on?G.target.charAt(i):'';
-    wrap.appendChild(cell);
+    frag.appendChild(cell);
   }
+  wrap.textContent='';
+  wrap.appendChild(frag);
+  if(panel) panel.style.display='block';
 }
 
 function renderLeaderboard(el, scores, myId){
