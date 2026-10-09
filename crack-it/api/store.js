@@ -157,9 +157,11 @@ function sanitizeRoom(r) {
   if (!(mg >= 1 && mg <= 20)) mg = 7;
   let round = parseInt(r.round, 10);
   if (!(round >= 1 && round <= 9999)) round = 1;
+  let totalWords = parseInt(r.totalWords, 10);
+  if (!(totalWords >= 0 && totalWords <= 99)) totalWords = 0;   // 0 = no limit
   if (target.length < 3) return null;
   // A brand-new word always starts with a clean (empty) countdown.
-  return { target, clue, maxGuesses: mg, round, firstSolvedAt: null, firstSolver: '', createdAt: Date.now() };
+  return { target, clue, maxGuesses: mg, round, totalWords, firstSolvedAt: null, firstSolver: '', createdAt: Date.now() };
 }
 
 function sanitizeEntry(e, sid) {
