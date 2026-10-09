@@ -3146,6 +3146,8 @@ function stopBoardPolling(){ if(boardPoll){ clearInterval(boardPoll); boardPoll=
 
 async function refreshBoard(){
   if(!boardCode) return;
+  // If audio got suspended (screen dimmed, etc.) while the board is active, wake it.
+  try{ if(audioCtx && audioCtx.state==='suspended' && boardMusic.isOn()){ audioCtx.resume(); boardMusic.resume(); } }catch(e){}
   const raw=await loadScoresRaw(boardCode);
   const agg=aggregateScores(raw);
   renderLeaderboard(document.getElementById('b-lb'), agg, null);
@@ -3542,11 +3544,11 @@ const boardMusic=(function(){
     toggle(){ on=!on; if(on) startSeq(); else stopSeq(); return on; },
     isOn(){ return on; },
     // Called when the board tab becomes visible again — resume audio cleanly.
-    resume(){ const ctx=c(); if(!ctx) return; try{ if(ctx.state==='suspended') ctx.resume(); }catch(e){} if(playing){ nextTime=ctx.currentTime+0.1; } },
+    resume(){ const ctx=c(); if(!ctx) return; try{ if(ctx.state==='suspended') ctx.resume(); }catch(e){} if(playing){ nextTime=ctx.currentTime+0.1; if(master){ try{ master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(MASTER, ctx.currentTime); }catch(e){} } } },
     // Briefly dip the music so the sledgehammer smash punches through, then restore.
     duck(){
       const ctx=c(); if(!ctx||!master) return; const t=ctx.currentTime;
-      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.008,t,0.015); master.gain.setTargetAtTime(MASTER,t+0.62,0.25); }catch(e){}
+      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.02,t,0.015); master.gain.setTargetAtTime(MASTER,t+0.5,0.12); }catch(e){}
     }
   };
 })();
