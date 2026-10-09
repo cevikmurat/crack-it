@@ -3392,6 +3392,12 @@ function playWinChime(){
     sub.connect(sg); sg.connect(ctx.destination);
     sub.start(now); sub.stop(now+0.48);
 
+    // 1b) Bright crack transient — a sharp attack so it cuts through the music.
+    const ck=ctx.createOscillator(), ckg=ctx.createGain();
+    ck.type='square'; ck.frequency.setValueAtTime(2300,now); ck.frequency.exponentialRampToValueAtTime(850,now+0.05);
+    ckg.gain.setValueAtTime(0.45,now); ckg.gain.exponentialRampToValueAtTime(0.001,now+0.07);
+    ck.connect(ckg); ckg.connect(ctx.destination); ck.start(now); ck.stop(now+0.08);
+
     // 2) Shatter — a strong burst of noise (the crack), fuller + a touch louder.
     const dur=0.5;
     const buf=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur)), ctx.sampleRate);
@@ -3526,7 +3532,7 @@ const boardMusic=(function(){
     // Briefly dip the music so the sledgehammer smash punches through, then restore.
     duck(){
       const ctx=c(); if(!ctx||!master) return; const t=ctx.currentTime;
-      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.04,t,0.02); master.gain.setTargetAtTime(MASTER,t+0.5,0.25); }catch(e){}
+      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.008,t,0.015); master.gain.setTargetAtTime(MASTER,t+0.62,0.25); }catch(e){}
     }
   };
 })();
