@@ -2617,7 +2617,7 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div class="card" style="background:var(--surface2);">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
-    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>45 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
+    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>35 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
   </div>
 </div>
 
@@ -3314,7 +3314,7 @@ async function loadScoresRaw(code){
 //  • Once the first crack lands, everyone else has WINDOW_MS to
 //    get in; solves after that score 0 ("too late").
 // ════════════════════════════════════════════════════════════
-const WINDOW_MS=45000;
+const WINDOW_MS=35000;
 const S_BASE=1000, S_FIRST=500, S_HINT_EACH=400, MAX_HINTS=2;
 function posBonus(pos){ return pos===1?S_FIRST:pos===2?200:pos===3?150:pos===4?100:0; }
 function entryHints(e){ return e.hints!=null ? e.hints : (e.hintUsed?1:0); }  // backward-compatible hint count
