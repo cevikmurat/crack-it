@@ -3444,81 +3444,89 @@ function playWinChime(){
 // ════════════════════════════════════════════════════════════
 const boardMusic=(function(){
   let on=true;                 // default on (teacher can mute on the board)
-  let padOn=false, padGain=null, padNodes=[];
-  let tickOn=false, tickTimer=null, curIntensity=0;
-  let droneOn=false, droneGain=null, droneNodes=[];
+  let master=null, playing=false, schedTimer=null, step=0, nextTime=0;
+  const MASTER=0.22;           // overall music volume (clearly audible, not overpowering)
+  const BPM=128, sec16=(60/BPM)/4;
   function c(){ initAudio(); return audioCtx; }
 
-  function startPad(){
-    const ctx=c(); if(!ctx||padOn) return; padOn=true;
-    padGain=ctx.createGain(); padGain.gain.value=0.0001; padGain.connect(ctx.destination);
-    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=650; lp.connect(padGain);
-    [110,164.81,220].forEach((f,i)=>{                 // soft A2 · E3 · A3 chord
-      const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
-      const g=ctx.createGain(); g.gain.value=i===0?0.5:0.3;
-      o.connect(g); g.connect(lp); o.start(); padNodes.push(o,g);
-    });
-    const lfo=ctx.createOscillator(); lfo.type='sine'; lfo.frequency.value=0.1;   // gentle drift
-    const lfoG=ctx.createGain(); lfoG.gain.value=0.004;
-    lfo.connect(lfoG); lfoG.connect(padGain.gain); lfo.start(); padNodes.push(lfo,lfoG);
-    padGain.gain.setTargetAtTime(0.028, ctx.currentTime, 1.2);   // fade in, stays subtle
+  // Bright, poppy I–V–vi–IV loop in C (one entry per bar).
+  const BARS=[
+    { bass:65.41,  arp:[261.63,329.63,392.00,523.25] },  // C
+    { bass:98.00,  arp:[392.00,493.88,587.33,392.00] },  // G
+    { bass:110.00, arp:[440.00,523.25,659.25,523.25] },  // Am
+    { bass:87.31,  arp:[349.23,440.00,523.25,659.25] },  // F
+  ];
+
+  function kick(t){
+    const ctx=c(); const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(160,t); o.frequency.exponentialRampToValueAtTime(50,t+0.1);
+    g.gain.setValueAtTime(0.9,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.13);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.15);
   }
-  function stopPad(){
+  function noise(t,dur){ const ctx=c(); const b=ctx.createBuffer(1,Math.max(1,Math.floor(ctx.sampleRate*dur)),ctx.sampleRate);
+    const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const s=ctx.createBufferSource(); s.buffer=b; return s; }
+  function hat(t){
+    const ctx=c(); const dur=0.03; const s=noise(t,dur);
+    const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7000;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.16,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    s.connect(hp); hp.connect(g); g.connect(master); s.start(t); s.stop(t+dur);
+  }
+  function snare(t){
+    const ctx=c(); const dur=0.14; const s=noise(t,dur);
+    const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1900; bp.Q.value=0.7;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.32,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t+dur);
+  }
+  function bass(t,f,len){
+    const ctx=c(); const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sawtooth'; o.frequency.value=f;
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+len);
+    o.connect(lp); lp.connect(g); g.connect(master); o.start(t); o.stop(t+len+0.02);
+  }
+  function pluck(t,f){
+    const ctx=c(); const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.16,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.2);
+  }
+  function scheduleStep(s,t){
+    const bar=Math.floor(s/16)%4, i=s%16, B=BARS[bar];
+    if(i%4===0) kick(t);                         // four on the floor
+    if(i%4===2) hat(t);                          // offbeat hats
+    if(i===4||i===12) snare(t);                  // backbeat
+    if(i===0||i===8) bass(t, B.bass, sec16*4);   // bass twice a bar
+    if(i%2===0) pluck(t, B.arp[(i/2)%4]);        // bouncy arp on 8ths
+  }
+  function scheduler(){
+    const ctx=c(); if(!ctx||!playing) return;
+    while(nextTime < ctx.currentTime + 0.12){ scheduleStep(step,nextTime); nextTime+=sec16; step=(step+1)%64; }
+    schedTimer=setTimeout(scheduler,25);
+  }
+  function startSeq(){
+    const ctx=c(); if(!ctx||playing) return; playing=true;
+    master=ctx.createGain(); master.gain.value=MASTER; master.connect(ctx.destination);
+    step=0; nextTime=ctx.currentTime+0.1; scheduler();
+  }
+  function stopSeq(){
+    playing=false; if(schedTimer){ clearTimeout(schedTimer); schedTimer=null; }
     const ctx=c();
-    if(padGain&&ctx){ try{ padGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4); }catch(e){} }
-    setTimeout(()=>{ padNodes.forEach(n=>{ try{ n.stop&&n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
-      padNodes=[]; if(padGain){ try{padGain.disconnect();}catch(e){} padGain=null; } padOn=false; }, 500);
-  }
-  function playTick(){
-    const ctx=c(); if(!ctx||!on) return;
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.type='square'; o.frequency.value=1500;
-    const t=ctx.currentTime;
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.05+0.06*curIntensity,t+0.003);
-    g.gain.exponentialRampToValueAtTime(0.0005,t+0.05);
-    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.06);
-  }
-  function tickLoop(){
-    if(!tickOn) return;
-    playTick();
-    const interval=520-curIntensity*380;             // 520ms (calm) → 140ms (frantic)
-    tickTimer=setTimeout(tickLoop, Math.max(120, interval));
-  }
-  function startDrone(){
-    const ctx=c(); if(!ctx||droneOn) return; droneOn=true;
-    droneGain=ctx.createGain(); droneGain.gain.value=0.0001; droneGain.connect(ctx.destination);
-    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=380; lp.connect(droneGain);
-    const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=55;
-    o.connect(lp); o.start(); droneNodes.push(o,lp);
-  }
-  function stopDrone(){
-    const ctx=c();
-    if(droneGain&&ctx){ try{ droneGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.3); }catch(e){} }
-    setTimeout(()=>{ droneNodes.forEach(n=>{ try{ n.stop&&n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
-      droneNodes=[]; if(droneGain){ try{droneGain.disconnect();}catch(e){} droneGain=null; } droneOn=false; }, 400);
+    if(master&&ctx){ try{ master.gain.setTargetAtTime(0.0001,ctx.currentTime,0.08); }catch(e){} }
+    setTimeout(()=>{ if(master){ try{master.disconnect();}catch(e){} master=null; } },300);
   }
   return {
-    start(){ if(on) startPad(); },
-    stop(){ tickOn=false; if(tickTimer) clearTimeout(tickTimer); stopDrone(); stopPad(); },
-    // intensity 0..1 (closer to 0s → higher). active=false ends the tension layer.
-    tension(active, intensity){
-      curIntensity=Math.max(0,Math.min(1,intensity||0));
-      if(active && on){
-        startDrone();
-        const ctx=c(); if(droneGain&&ctx) droneGain.gain.setTargetAtTime(0.02+0.06*curIntensity, ctx.currentTime, 0.25);
-        if(!tickOn){ tickOn=true; tickLoop(); }
-      } else {
-        tickOn=false; if(tickTimer) clearTimeout(tickTimer); stopDrone();
-      }
-    },
-    toggle(){ on=!on; if(on) startPad(); else this.stop(); return on; },
+    start(){ if(on) startSeq(); },
+    stop(){ stopSeq(); },
+    tension(){ /* Kahoot-style loop stays steady — no separate tension layer */ },
+    toggle(){ on=!on; if(on) startSeq(); else stopSeq(); return on; },
     isOn(){ return on; },
     // Briefly dip the music so the sledgehammer smash punches through, then restore.
     duck(){
-      const ctx=c(); if(!ctx) return; const t=ctx.currentTime;
-      if(padGain){ try{ padGain.gain.cancelScheduledValues(t); padGain.gain.setTargetAtTime(0.005,t,0.02); padGain.gain.setTargetAtTime(0.028,t+0.55,0.3); }catch(e){} }
-      if(droneGain){ try{ droneGain.gain.cancelScheduledValues(t); droneGain.gain.setTargetAtTime(0.004,t,0.02); droneGain.gain.setTargetAtTime(0.02+0.06*curIntensity,t+0.55,0.3); }catch(e){} }
+      const ctx=c(); if(!ctx||!master) return; const t=ctx.currentTime;
+      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.04,t,0.02); master.gain.setTargetAtTime(MASTER,t+0.5,0.25); }catch(e){}
     }
   };
 })();
