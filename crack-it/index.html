@@ -2382,7 +2382,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .player-pill{font-size:.66rem;font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
 .player-pill b{color:var(--blue);}
 
-.clue-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:9px 12px;text-align:center;}
+.clue-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px 12px;text-align:center;}
 .clue-label{font-size:.54rem;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
 .clue-word{font-family:'Poppins',sans-serif;font-size:1.3rem;font-weight:800;color:var(--green);letter-spacing:.03em;line-height:1.15;word-break:break-word;}
 .clue-len{font-size:.66rem;color:var(--accent);margin-top:4px;letter-spacing:.08em;}
@@ -2440,10 +2440,10 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .lb-stat .sub{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-top:1px;}
 /* Hint control on the student play screen */
 .hint-row{width:100%;display:flex;align-items:center;gap:10px;}
-.hint-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Poppins',sans-serif;font-size:.74rem;font-weight:700;padding:7px 12px;border-radius:999px;cursor:pointer;flex-shrink:0;}
+.hint-btn{border:2px solid var(--accent);background:rgba(245,200,66,.12);color:var(--accent);font-family:'Poppins',sans-serif;font-size:.98rem;font-weight:800;padding:11px 20px;border-radius:999px;cursor:pointer;flex-shrink:0;}
 .hint-btn:hover:not(:disabled){border-color:var(--accent);}
 .hint-btn:disabled{opacity:.5;cursor:default;}
-.hint-reveal{font-size:.74rem;font-weight:700;color:var(--accent);}
+.hint-reveal{font-size:.85rem;font-weight:800;color:var(--accent);}
 .word-badge{display:inline-block;margin-left:6px;background:var(--accent);color:#1b1d28;font-weight:800;font-size:.6rem;letter-spacing:.06em;padding:2px 8px;border-radius:999px;vertical-align:middle;}
 
 /* ── Win / result overlay ── */
@@ -2616,7 +2616,7 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div class="card" style="background:var(--surface2);">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
-    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>30 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
+    <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>45 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
   </div>
 </div>
 
@@ -3300,7 +3300,7 @@ async function loadScoresRaw(code){
 //  • Once the first crack lands, everyone else has WINDOW_MS to
 //    get in; solves after that score 0 ("too late").
 // ════════════════════════════════════════════════════════════
-const WINDOW_MS=30000;
+const WINDOW_MS=45000;
 const S_BASE=1000, S_FIRST=500, S_HINT_EACH=400, MAX_HINTS=2;
 function posBonus(pos){ return pos===1?S_FIRST:pos===2?200:pos===3?150:pos===4?100:0; }
 function entryHints(e){ return e.hints!=null ? e.hints : (e.hintUsed?1:0); }  // backward-compatible hint count
