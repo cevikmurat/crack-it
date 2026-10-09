@@ -3164,7 +3164,7 @@ async function refreshBoard(){
   } else {
     let fresh=false;
     solvedRaw.forEach(s=>{ const k=s.studentId+':'+(s.round||1); if(!boardSeenSolved.has(k)){ boardSeenSolved.add(k); fresh=true; } });
-    if(fresh){ launchConfetti(); playWinChime(); }
+    if(fresh){ launchConfetti(); playWinChime(); }   // one smash per batch (no overlap)
   }
 
   // Live "N racing" counter — only before the first crack of this word.
@@ -3377,82 +3377,79 @@ function initAudio(){
     if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
   }catch(e){}
 }
-// 🔨 "Cracked it!" = a sledgehammer SMASH (WebAudio, no files):
-//    a low impact thud + a burst of shatter noise + a little flying debris.
+// 🔨 "Cracked it!" = a sledgehammer SMASH. Synthesised ONCE into an audio
+//    buffer, then played as a single node each time — so it never comes out
+//    half-played / tail-less, no matter how busy the audio engine is.
+function buildSmash(ctx, dest, now){
+  // 1) Low impact thud + deep sub.
+  const thud=ctx.createOscillator(), tg=ctx.createGain();
+  thud.type='sine'; thud.frequency.setValueAtTime(220, now); thud.frequency.exponentialRampToValueAtTime(40, now+0.20);
+  tg.gain.setValueAtTime(0.0001, now); tg.gain.exponentialRampToValueAtTime(1.1, now+0.008); tg.gain.exponentialRampToValueAtTime(0.0008, now+0.42);
+  thud.connect(tg); tg.connect(dest); thud.start(now); thud.stop(now+0.46);
+  const sub=ctx.createOscillator(), sg=ctx.createGain();
+  sub.type='sine'; sub.frequency.setValueAtTime(110, now); sub.frequency.exponentialRampToValueAtTime(34, now+0.22);
+  sg.gain.setValueAtTime(0.0001, now); sg.gain.exponentialRampToValueAtTime(0.7, now+0.01); sg.gain.exponentialRampToValueAtTime(0.0008, now+0.45);
+  sub.connect(sg); sg.connect(dest); sub.start(now); sub.stop(now+0.48);
+  // 1b) Bright crack transient.
+  const ck=ctx.createOscillator(), ckg=ctx.createGain();
+  ck.type='square'; ck.frequency.setValueAtTime(2300,now); ck.frequency.exponentialRampToValueAtTime(850,now+0.05);
+  ckg.gain.setValueAtTime(0.45,now); ckg.gain.exponentialRampToValueAtTime(0.001,now+0.07);
+  ck.connect(ckg); ckg.connect(dest); ck.start(now); ck.stop(now+0.08);
+  // 2) Shatter noise.
+  const dur=0.5;
+  const buf=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur)), ctx.sampleRate);
+  const d=buf.getChannelData(0); for(let i=0;i<d.length;i++){ d[i]=(Math.random()*2-1)*(1-i/d.length); }
+  const noise=ctx.createBufferSource(); noise.buffer=buf;
+  const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=800;
+  const ng=ctx.createGain(); ng.gain.setValueAtTime(0.0001, now); ng.gain.exponentialRampToValueAtTime(0.95, now+0.006); ng.gain.exponentialRampToValueAtTime(0.0008, now+0.36);
+  noise.connect(hp); hp.connect(ng); ng.connect(dest); noise.start(now); noise.stop(now+dur);
+  // 3) Debris scattering + settling.
+  const pieces=14;
+  for(let i=0;i<pieces;i++){
+    const t=now+0.02+(i/pieces)*0.7; const vol=0.11*(1-i/pieces)+0.02;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=(i%2)?'square':'triangle'; o.frequency.value=1600+Math.random()*2400;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t+0.004); g.gain.exponentialRampToValueAtTime(0.0006, t+0.11);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t+0.14);
+  }
+  // 4) Low "settle" rumble.
+  const dur2=0.95;
+  const buf2=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur2)), ctx.sampleRate);
+  const d2=buf2.getChannelData(0); for(let i=0;i<d2.length;i++){ d2[i]=(Math.random()*2-1)*Math.pow(1-i/d2.length,1.6); }
+  const n2=ctx.createBufferSource(); n2.buffer=buf2;
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=700;
+  const g2=ctx.createGain(); g2.gain.setValueAtTime(0.0001, now+0.02); g2.gain.exponentialRampToValueAtTime(0.2, now+0.08); g2.gain.exponentialRampToValueAtTime(0.0006, now+dur2);
+  n2.connect(lp); lp.connect(g2); g2.connect(dest); n2.start(now+0.02); n2.stop(now+0.02+dur2);
+}
+
+// Pre-render the smash once into a reusable buffer (offline, no gesture needed).
+let smashBuffer=null, smashRendering=false;
+function renderSmashBuffer(){
+  if(smashBuffer||smashRendering) return;
+  try{
+    const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    if(!OAC) return;
+    const sr=44100, len=Math.ceil(sr*1.25);
+    const off=new OAC(1, len, sr);
+    buildSmash(off, off.destination, 0);
+    smashRendering=true;
+    off.startRendering().then(b=>{ smashBuffer=b; smashRendering=false; }).catch(()=>{ smashRendering=false; });
+  }catch(e){ smashRendering=false; }
+}
+try{ renderSmashBuffer(); }catch(e){}   // start rendering at page load
+
 function playWinChime(){
   try{
     initAudio(); if(!audioCtx) return;
-    try{ boardMusic.duck(); }catch(e){}   // dip the board music so the smash pops
-    const ctx=audioCtx, now=ctx.currentTime;
-
-    // 1) Low impact thud — the hammer landing (punchier, with a deep sub).
-    const thud=ctx.createOscillator(), tg=ctx.createGain();
-    thud.type='sine';
-    thud.frequency.setValueAtTime(220, now);
-    thud.frequency.exponentialRampToValueAtTime(40, now+0.20);
-    tg.gain.setValueAtTime(0.0001, now);
-    tg.gain.exponentialRampToValueAtTime(1.1, now+0.008);
-    tg.gain.exponentialRampToValueAtTime(0.0008, now+0.42);
-    thud.connect(tg); tg.connect(ctx.destination);
-    thud.start(now); thud.stop(now+0.46);
-    // deep sub layer for extra weight
-    const sub=ctx.createOscillator(), sg=ctx.createGain();
-    sub.type='sine';
-    sub.frequency.setValueAtTime(110, now);
-    sub.frequency.exponentialRampToValueAtTime(34, now+0.22);
-    sg.gain.setValueAtTime(0.0001, now);
-    sg.gain.exponentialRampToValueAtTime(0.7, now+0.01);
-    sg.gain.exponentialRampToValueAtTime(0.0008, now+0.45);
-    sub.connect(sg); sg.connect(ctx.destination);
-    sub.start(now); sub.stop(now+0.48);
-
-    // 1b) Bright crack transient — a sharp attack so it cuts through the music.
-    const ck=ctx.createOscillator(), ckg=ctx.createGain();
-    ck.type='square'; ck.frequency.setValueAtTime(2300,now); ck.frequency.exponentialRampToValueAtTime(850,now+0.05);
-    ckg.gain.setValueAtTime(0.45,now); ckg.gain.exponentialRampToValueAtTime(0.001,now+0.07);
-    ck.connect(ckg); ckg.connect(ctx.destination); ck.start(now); ck.stop(now+0.08);
-
-    // 2) Shatter — a strong burst of noise (the crack), fuller + a touch louder.
-    const dur=0.5;
-    const buf=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur)), ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++){ d[i]=(Math.random()*2-1)*(1-i/d.length); }  // decaying noise
-    const noise=ctx.createBufferSource(); noise.buffer=buf;
-    const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=800;
-    const ng=ctx.createGain();
-    ng.gain.setValueAtTime(0.0001, now);
-    ng.gain.exponentialRampToValueAtTime(0.95, now+0.006);
-    ng.gain.exponentialRampToValueAtTime(0.0008, now+0.36);
-    noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
-    noise.start(now); noise.stop(now+dur);
-
-    // 3) Debris scattering + settling — continuous, right on the smash (no gap).
-    const pieces=14;
-    for(let i=0;i<pieces;i++){
-      const t=now+0.02+(i/pieces)*0.7;            // evenly spread → rings out smoothly
-      const vol=0.11*(1-i/pieces)+0.02;           // steady fade, no isolated late tings
-      const o=ctx.createOscillator(), g=ctx.createGain();
-      o.type=(i%2)?'square':'triangle';
-      o.frequency.value=1600+Math.random()*2400;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(vol, t+0.004);
-      g.gain.exponentialRampToValueAtTime(0.0006, t+0.11);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t); o.stop(t+0.14);
+    try{ if(audioCtx.state==='suspended') audioCtx.resume(); }catch(e){}
+    try{ boardMusic.duck(); }catch(e){}
+    if(smashBuffer){
+      const s=audioCtx.createBufferSource(); s.buffer=smashBuffer;
+      s.connect(audioCtx.destination); s.start();   // one node → always full, never tail-less
+    } else {
+      buildSmash(audioCtx, audioCtx.destination, audioCtx.currentTime);  // fallback until the buffer is ready
+      renderSmashBuffer();
     }
-    // 4) Low "settle" rumble under the tail, continuous from the smash.
-    const dur2=0.95;
-    const buf2=ctx.createBuffer(1, Math.max(1,Math.floor(ctx.sampleRate*dur2)), ctx.sampleRate);
-    const d2=buf2.getChannelData(0);
-    for(let i=0;i<d2.length;i++){ d2[i]=(Math.random()*2-1)*Math.pow(1-i/d2.length,1.6); }
-    const n2=ctx.createBufferSource(); n2.buffer=buf2;
-    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=700;
-    const g2=ctx.createGain();
-    g2.gain.setValueAtTime(0.0001, now+0.02);
-    g2.gain.exponentialRampToValueAtTime(0.2, now+0.08);
-    g2.gain.exponentialRampToValueAtTime(0.0006, now+dur2);
-    n2.connect(lp); lp.connect(g2); g2.connect(ctx.destination);
-    n2.start(now+0.02); n2.stop(now+0.02+dur2);
   }catch(e){}
 }
 
