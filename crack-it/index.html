@@ -3564,7 +3564,7 @@ const boardMusic=(function(){
     // Briefly dip the music so the sledgehammer smash punches through, then restore.
     duck(){
       const ctx=c(); if(!ctx||!master) return; const t=ctx.currentTime;
-      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.02,t,0.015); master.gain.setTargetAtTime(MASTER,t+0.5,0.12); }catch(e){}
+      try{ master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.015,t,0.015); master.gain.setTargetAtTime(MASTER,t+0.75,0.15); }catch(e){}
     }
   };
 })();
