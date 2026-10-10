@@ -2542,6 +2542,30 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 @keyframes podflash{0%,100%{transform:scale(1);}18%{transform:scale(1.06);}36%{transform:scale(1);}54%{transform:scale(1.04);}72%{transform:scale(1);}}
 .podium.flash .pod-block{box-shadow:0 0 18px rgba(234,179,8,.55),inset 0 2px 6px rgba(255,255,255,.35);}
 .podium.flash .pod1 .pod-block{box-shadow:0 0 0 3px rgba(234,179,8,.65),0 0 26px rgba(234,179,8,.8),inset 0 2px 6px rgba(255,255,255,.4);}
+/* ── Grand finale (top 3, end of game) ── */
+.finale{position:fixed;inset:0;z-index:9000;background:rgba(10,12,18,.97);display:none;align-items:center;justify-content:center;padding:20px;}
+.finale.show{display:flex;}
+.finale-inner{width:100%;max-width:720px;text-align:center;}
+.finale-title{font-family:'Poppins',sans-serif;font-size:2.4rem;font-weight:800;color:#f5c842;letter-spacing:1px;line-height:1.1;}
+.finale-sub{color:#c7cdda;font-size:1rem;margin:4px 0 26px;font-weight:600;}
+.finale-podium{display:flex;align-items:flex-end;justify-content:center;gap:16px;}
+.fpod{flex:1;max-width:180px;min-width:0;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(120%);}
+.finale.show .fpod{animation:friseUp .7s cubic-bezier(.2,.8,.2,1) forwards;}
+.finale.show .fp3{animation-delay:.15s;}
+.finale.show .fp2{animation-delay:.7s;}
+.finale.show .fp1{animation-delay:1.25s;}
+@keyframes friseUp{to{opacity:1;transform:translateY(0);}}
+.fp-crown{font-size:2.2rem;line-height:1;margin-bottom:2px;animation:crownBob 1.2s ease-in-out infinite;}
+@keyframes crownBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+.fp-name{font-weight:800;font-size:1.25rem;color:#fff;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fp-score{font-size:.95rem;font-weight:700;color:#f5c842;margin-bottom:8px;}
+.fp-block{width:100%;border-radius:12px 12px 0 0;display:flex;flex-direction:column;align-items:center;padding-top:14px;gap:4px;color:#1a1a1a;box-shadow:inset 0 3px 10px rgba(255,255,255,.4);}
+.fp-medal{font-size:2rem;line-height:1;}
+.fp-rank{font-family:'Poppins',sans-serif;font-weight:800;font-size:1.5rem;}
+.fp1 .fp-block{height:180px;background:linear-gradient(180deg,#ffe07a,#eab308);}
+.fp2 .fp-block{height:130px;background:linear-gradient(180deg,#eef2f7,#9aa3b2);}
+.fp3 .fp-block{height:100px;background:linear-gradient(180deg,#f6c89a,#cd7f32);}
+@media (max-width:560px){ .finale-title{font-size:1.8rem;} .fpod{max-width:120px;} .fp1 .fp-block{height:130px;} .fp2 .fp-block{height:95px;} .fp3 .fp-block{height:72px;} .fp-name{font-size:1rem;} .fp-medal{font-size:1.6rem;} }
 /* Secret-word input: masked on the smart board, with a peek button for the teacher */
 .secret-wrap{position:relative;width:100%;}
 .secret-wrap .input{padding-right:52px;}
@@ -2689,6 +2713,7 @@ body.light .btn.primary{color:#3a2a00;}
         <button class="btn ghost" onclick="clearLeaderboard()">🗑️ Reset scores</button>
       </div>
       <button class="btn ghost" id="b-music" type="button" onclick="toggleBoardMusic()">🎵 Music: on</button>
+      <button class="btn ghost" id="b-final" type="button" onclick="showFinale()">🏆 Final results</button>
 
       <div class="podium" id="b-podium" style="display:none;">
         <div class="pod pod2" id="pod2">
@@ -2784,6 +2809,30 @@ body.light .btn.primary{color:#3a2a00;}
 </div>
 
 <!-- ═══ RESULT OVERLAY ═══ -->
+<!-- ═══ GRAND FINALE (top 3) ═══ -->
+<div class="finale" id="finale" onclick="if(event.target===this) closeFinale()">
+  <div class="finale-inner">
+    <div class="finale-title">🏆 FINAL RESULTS</div>
+    <div class="finale-sub">Today's champions</div>
+    <div class="finale-podium">
+      <div class="fpod fp2" id="fpod2">
+        <div class="fp-name"></div><div class="fp-score"></div>
+        <div class="fp-block"><span class="fp-medal">🥈</span><span class="fp-rank">2</span></div>
+      </div>
+      <div class="fpod fp1" id="fpod1">
+        <div class="fp-crown">👑</div>
+        <div class="fp-name"></div><div class="fp-score"></div>
+        <div class="fp-block"><span class="fp-medal">🥇</span><span class="fp-rank">1</span></div>
+      </div>
+      <div class="fpod fp3" id="fpod3">
+        <div class="fp-name"></div><div class="fp-score"></div>
+        <div class="fp-block"><span class="fp-medal">🥉</span><span class="fp-rank">3</span></div>
+      </div>
+    </div>
+    <button class="btn ghost" style="margin-top:20px;" onclick="closeFinale()">Close ✕</button>
+  </div>
+</div>
+
 <div class="overlay" id="overlay">
   <div class="result-box">
     <div class="result-emoji" id="r-emoji">🔐</div>
@@ -3264,6 +3313,26 @@ function renderPodium(agg){
   fill('pod1', top[0]);   // centre (tallest)
   fill('pod3', top[2]);   // right
 }
+
+// Grand finale: full-screen top-3 podium that rises up, with confetti + smash.
+async function showFinale(){
+  if(!boardCode) return;
+  let agg=[]; try{ agg=await loadScores(boardCode); }catch(e){}
+  const top=(agg||[]).filter(s=>s&&s.total>0).slice(0,3);
+  if(!top.length) return;
+  const fill=(id,s)=>{ const el=document.getElementById(id); if(!el) return;
+    if(!s){ el.style.visibility='hidden'; return; } el.style.visibility='visible';
+    const n=el.querySelector('.fp-name'), sc=el.querySelector('.fp-score');
+    if(n) n.textContent=s.name||'—'; if(sc) sc.textContent='⭐ '+(s.total||0); };
+  fill('fpod2', top[1]); fill('fpod1', top[0]); fill('fpod3', top[2]);
+  const f=document.getElementById('finale'); if(!f) return;
+  f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');   // restart the rise animations
+  // Celebrate, timed to each place landing.
+  launchConfetti(); try{ playWinChime(); }catch(e){}
+  setTimeout(()=>launchConfetti(), 700);                        // 2nd place
+  setTimeout(()=>{ launchConfetti(); try{ playWinChime(); }catch(e){} }, 1300);  // 1st place
+}
+function closeFinale(){ const f=document.getElementById('finale'); if(f) f.classList.remove('show'); }
 
 // Floating "⚡ NAME took the lead!" toast on the board.
 function boardLeadToast(name){
