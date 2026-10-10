@@ -2549,12 +2549,16 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 .finale-title{font-family:'Poppins',sans-serif;font-size:2.4rem;font-weight:800;color:#f5c842;letter-spacing:1px;line-height:1.1;}
 .finale-sub{color:#c7cdda;font-size:1rem;margin:4px 0 26px;font-weight:600;}
 .finale-podium{display:flex;align-items:flex-end;justify-content:center;gap:16px;}
-.fpod{flex:1;max-width:180px;min-width:0;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(120%);}
-.finale.show .fpod{animation:friseUp .7s cubic-bezier(.2,.8,.2,1) forwards;}
+.fpod{flex:1;max-width:180px;min-width:0;display:flex;flex-direction:column;align-items:center;opacity:0;transform:scale(.3);}
+.finale.show .fpod{animation:fpop .6s cubic-bezier(.2,.9,.3,1.3) forwards;}
 .finale.show .fp3{animation-delay:.15s;}
-.finale.show .fp2{animation-delay:.7s;}
-.finale.show .fp1{animation-delay:1.25s;}
-@keyframes friseUp{to{opacity:1;transform:translateY(0);}}
+.finale.show .fp2{animation-delay:.75s;}
+.finale.show .fp1{animation-delay:1.35s;}
+@keyframes fpop{0%{opacity:0;transform:scale(.3);}60%{opacity:1;transform:scale(1.14);}100%{opacity:1;transform:scale(1);}}
+/* after they pop in, keep growing/shrinking */
+.finale-podium.pulse .fpod{animation:fpulse 1.5s ease-in-out infinite;}
+.finale-podium.pulse .fp1{animation-duration:1.15s;}
+@keyframes fpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
 .fp-crown{font-size:2.2rem;line-height:1;margin-bottom:2px;animation:crownBob 1.2s ease-in-out infinite;}
 @keyframes crownBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 .fp-name{font-weight:800;font-size:1.25rem;color:#fff;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -2706,7 +2710,7 @@ body.light .btn.primary{color:#3a2a00;}
       </div>
 
       <button class="btn danger" id="b-skip" type="button" style="margin-top:2px;display:none;" onclick="revealAnswer()">👁 Reveal answer &amp; end word</button>
-      <button class="btn primary" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word</button>
+      <button class="btn primary" id="b-next" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word</button>
 
       <div class="btn-row">
         <button class="btn ghost" onclick="copyInvite(this)">📋 Copy invite text</button>
@@ -2812,9 +2816,9 @@ body.light .btn.primary{color:#3a2a00;}
 <!-- ═══ GRAND FINALE (top 3) ═══ -->
 <div class="finale" id="finale" onclick="if(event.target===this) closeFinale()">
   <div class="finale-inner">
-    <div class="finale-title">🏆 FINAL RESULTS</div>
-    <div class="finale-sub">Today's champions</div>
-    <div class="finale-podium">
+    <div class="finale-title">🎉 GAME OVER!</div>
+    <div class="finale-sub">🏆 Champions of the game</div>
+    <div class="finale-podium" id="finale-podium">
       <div class="fpod fp2" id="fpod2">
         <div class="fp-name"></div><div class="fp-score"></div>
         <div class="fp-block"><span class="fp-medal">🥈</span><span class="fp-rank">2</span></div>
@@ -3016,6 +3020,8 @@ function goTeacher(){            // start a brand-new game (fresh code)
 }
 function goNextWord(){           // add the NEXT word to the current room (same code)
   if(!boardCode) return;
+  // Enforce the chosen number of words — no word past the limit; show the finale instead.
+  if(boardTotalWords>0 && boardRound>=boardTotalWords){ showFinale(); return; }
   nextWordMode=true;
   const h=document.getElementById('t-title'); if(h) h.textContent='Next word';
   const b=document.getElementById('t-start'); if(b) b.textContent='➡️ Start next word';
@@ -3095,6 +3101,9 @@ function updateRoundBadge(){
   const n=boardTotalWords||0;
   el.textContent = n>0 ? ('Word '+boardRound+' / '+n) : ('Word '+boardRound);
   el.style.display='inline-block';
+  // On the last word, the "Next word" button becomes "Finish & show results".
+  const nb=document.getElementById('b-next');
+  if(nb) nb.textContent = (n>0 && boardRound>=n) ? '🏆 Finish & show results' : '➡️ Next word';
 }
 
 // Build the scan-to-join QR for the current room (points at this page with the code pre-filled)
@@ -3283,6 +3292,10 @@ function revealAnswer(){
   const racing=document.getElementById('b-racing'); if(racing) racing.style.display='none';
   const skip=document.getElementById('b-skip'); if(skip) skip.style.display='none';
   highlightPodium();   // podium is always visible, but flash it at word's end
+  // Last word of the game? Roll the grand finale a moment after the reveal.
+  if(boardTotalWords>0 && boardRound>=boardTotalWords){
+    setTimeout(()=>{ if(boardCode && boardRevealed && boardRound>=boardTotalWords) showFinale(); }, 2600);
+  }
 }
 
 // Briefly pulse + glow the podium when a word ends.
@@ -3326,13 +3339,16 @@ async function showFinale(){
     if(n) n.textContent=s.name||'—'; if(sc) sc.textContent='⭐ '+(s.total||0); };
   fill('fpod2', top[1]); fill('fpod1', top[0]); fill('fpod3', top[2]);
   const f=document.getElementById('finale'); if(!f) return;
-  f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');   // restart the rise animations
-  // Celebrate, timed to each place landing.
+  const pod=document.getElementById('finale-podium'); if(pod) pod.classList.remove('pulse');
+  f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');   // restart the pop-in animations
+  // Celebrate, timed to each place popping in.
   launchConfetti(); try{ playWinChime(); }catch(e){}
-  setTimeout(()=>launchConfetti(), 700);                        // 2nd place
-  setTimeout(()=>{ launchConfetti(); try{ playWinChime(); }catch(e){} }, 1300);  // 1st place
+  setTimeout(()=>launchConfetti(), 750);                        // 2nd place
+  setTimeout(()=>{ launchConfetti(); try{ playWinChime(); }catch(e){} }, 1350);  // 1st place
+  // once all three are in, keep them gently growing/shrinking
+  setTimeout(()=>{ if(pod) pod.classList.add('pulse'); }, 2100);
 }
-function closeFinale(){ const f=document.getElementById('finale'); if(f) f.classList.remove('show'); }
+function closeFinale(){ const f=document.getElementById('finale'); if(f) f.classList.remove('show'); const pod=document.getElementById('finale-podium'); if(pod) pod.classList.remove('pulse'); }
 
 // Floating "⚡ NAME took the lead!" toast on the board.
 function boardLeadToast(name){
