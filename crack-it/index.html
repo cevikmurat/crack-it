@@ -2772,7 +2772,8 @@ body.light .btn.primary{color:#3a2a00;}
 
     <div class="board-main">
       <div class="logo-sub" style="margin-top:4px;">Read this out to the class <span class="word-badge" id="b-round" style="display:none;"></span></div>
-      <div class="clue-strip">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
+      <div class="clue-strip" id="b-cluestrip">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
+      <div class="clue-strip" id="b-cluehidden" style="display:none;">🔒 Clue hidden · <b id="b-hlen">—</b> letters · <b id="b-hguesses">—</b> guesses — students are joining… tap <b>Reveal clue</b> when everyone's in</div>
 
       <div class="racing" id="b-racing" style="display:none;"></div>
       <div class="crack-banner" id="b-crack" style="display:none;">
@@ -2781,6 +2782,7 @@ body.light .btn.primary{color:#3a2a00;}
         <div class="cb-word" id="b-reveal" style="display:none;"></div>
       </div>
 
+      <button class="btn" id="b-reveal-clue" type="button" style="margin-top:2px;display:none;background:var(--green);color:#06281c;font-weight:800;" onclick="revealClue()">▶ Reveal clue to the class</button>
       <button class="btn danger" id="b-skip" type="button" style="margin-top:2px;display:none;" onclick="revealAnswer()">👁 Reveal answer &amp; end word</button>
       <button class="btn primary" id="b-next" style="margin-top:2px;" onclick="goNextWord()">➡️ Next word</button>
 
@@ -3238,17 +3240,47 @@ function xferLoad(){ const ta=document.getElementById('t-xfer'); const msg=docum
   seedRows(items); updateListCount();
   if(msg){ msg.textContent='✓ Loaded '+items.length+' words into the table'; msg.style.color='#2ecc71'; } }
 
+// ── Lobby: a word starts with its clue HIDDEN (sent to the server as empty) so
+//    everyone can scan/join first; the teacher taps "Reveal clue" to show it to
+//    the whole class at the same moment. ──
+function boardHideClue(realClue,len,guesses){
+  boardClueRevealed=false; boardPendingClue=realClue;
+  const cs=document.getElementById('b-cluestrip'); if(cs) cs.style.display='none';
+  const ch=document.getElementById('b-cluehidden'); if(ch) ch.style.display='';
+  const hl=document.getElementById('b-hlen'); if(hl) hl.textContent=len;
+  const hg=document.getElementById('b-hguesses'); if(hg) hg.textContent=guesses;
+  const rc=document.getElementById('b-reveal-clue'); if(rc){ rc.style.display=''; rc.disabled=false; rc.textContent='▶ Reveal clue to the class'; }
+  const skip=document.getElementById('b-skip'); if(skip) skip.style.display='none';   // can't end a word before its clue is out
+}
+function boardShowClue(){
+  boardClueRevealed=true;
+  const cs=document.getElementById('b-cluestrip'); if(cs) cs.style.display='';
+  const ch=document.getElementById('b-cluehidden'); if(ch) ch.style.display='none';
+  const rc=document.getElementById('b-reveal-clue'); if(rc) rc.style.display='none';
+  const skip=document.getElementById('b-skip'); if(skip) skip.style.display='';
+}
+async function revealClue(){
+  if(!boardCode || boardClueRevealed) return;
+  const clue=boardPendingClue||'';
+  const room={ target:boardTarget, clue, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+  const rc=document.getElementById('b-reveal-clue'); if(rc){ rc.disabled=true; rc.textContent='Revealing…'; }
+  try{ await api('nextWord',{ code:boardCode, room }); }
+  catch(e){ if(rc){ rc.disabled=false; rc.textContent='▶ Reveal clue to the class'; } setToast('Could not reach the server — tap Reveal clue again.','warn'); return; }
+  document.getElementById('b-clue').textContent=clue;
+  boardShowClue();
+}
+
 // Advance to a prepared word automatically (playlist mode) — no typing screen.
 async function advanceToWord(target, clueRaw){
   boardRound += 1;
-  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+  const room={ target, clue:'', maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
   try{ await api('nextWord',{ code:boardCode, room }); }
   catch(e){ boardRound-=1; setToast('Could not reach the server — tap Next word again.','warn'); return; }
   boardTarget=target;
   resetBoardWord();
-  document.getElementById('b-clue').textContent=clueRaw;
   document.getElementById('b-len').textContent=target.length;
   document.getElementById('b-guesses').textContent=chosenGuesses;
+  boardHideClue(clueRaw, target.length, chosenGuesses);   // clue hidden until "Reveal clue"
   updateRoundBadge();
   go('s-board');
 }
@@ -3276,6 +3308,7 @@ let boardSeenSolved=new Set(), boardInit=false;   // track who already solved, t
 let nextWordMode=false;                           // true while entering a follow-up word (keep the same code)
 // Board round state: the current answer, the shared countdown + reveal
 let boardTarget='', boardFirstAt=0, boardRevealed=false, boardTick=null, boardPrevLeader=null;
+let boardClueRevealed=false, boardPendingClue='';   // lobby: clue stays hidden until the teacher reveals it
 let leadToastTs=0;
 
 function goTeacher(){            // start a brand-new game (fresh code)
@@ -3343,15 +3376,15 @@ async function createRound(){
   // ── Follow-up word: keep the SAME code, just advance the round ──
   if(nextWordMode && boardCode){
     boardRound += 1;
-    const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+    const room={ target, clue:'', maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
     try{ await api('nextWord',{ code:boardCode, room }); }
     catch(e){ showErr('t-err','Could not reach the game server. Check your internet and try again.'); boardRound-=1; return; }
     nextWordMode=false;
     boardTarget=target;
     resetBoardWord();                     // fresh countdown/reveal for the new word
-    document.getElementById('b-clue').textContent=clueRaw;
     document.getElementById('b-len').textContent=target.length;
     document.getElementById('b-guesses').textContent=chosenGuesses;
+    boardHideClue(clueRaw, target.length, chosenGuesses);   // clue hidden until "Reveal clue"
     updateRoundBadge();
     go('s-board');                        // board keeps polling + keeps cumulative scores
     document.getElementById('t-target').value='';
@@ -3362,7 +3395,7 @@ async function createRound(){
 
   // ── Brand-new game: get a fresh, unused room code (round 1) ──
   boardTotalWords=chosenWords;
-  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:1, totalWords:chosenWords, createdAt:Date.now() };
+  const room={ target, clue:'', maxGuesses:chosenGuesses, round:1, totalWords:chosenWords, createdAt:Date.now() };
   let code=null;
   for(let t=0;t<10;t++){
     const c=makeRoomCode();
@@ -3377,9 +3410,9 @@ async function createRound(){
   boardTarget=target;
   resetBoardWord();                       // fresh countdown/reveal for the first word
   document.getElementById('b-code').textContent=code;
-  document.getElementById('b-clue').textContent=clueRaw;
   document.getElementById('b-len').textContent=target.length;
   document.getElementById('b-guesses').textContent=chosenGuesses;
+  boardHideClue(clueRaw, target.length, chosenGuesses);   // lobby: students join first, clue hidden until "Reveal clue"
   updateRoundBadge();
   go('s-board');
   startBoardPolling();
@@ -4003,11 +4036,12 @@ async function joinRound(){
 
 function setupPlay(){
   document.getElementById('p-code').textContent=G.code;
-  document.getElementById('p-clue').textContent=G.clue;
-  document.getElementById('p-len').textContent='The answer has '+G.target.length+' letters';
+  const waiting=!G.clue;                   // clue not revealed yet → lobby
+  document.getElementById('p-clue').textContent = waiting ? '⏳' : G.clue;
+  document.getElementById('p-len').textContent = waiting ? 'Waiting for the clue…' : ('The answer has '+G.target.length+' letters');
   const inp=document.getElementById('p-input');
-  inp.value=''; inp.maxLength=G.target.length; inp.disabled=false;
-  inp.placeholder=G.target.length+'-letter word…';
+  inp.value=''; inp.maxLength=G.target.length; inp.disabled=waiting;
+  inp.placeholder = waiting ? 'waiting for the clue…' : (G.target.length+'-letter word…');
   document.getElementById('p-guesses').innerHTML='<div class="guess-empty">Your guesses will appear here…</div>';
   // reset the hint for the new round
   if(G){ G.hints=0; G.hintPos=[]; }
@@ -4016,9 +4050,9 @@ function setupPlay(){
   // reset the race countdown for the new round
   stopRaceCountdown(); if(G) G.raceEnd=0;
   const rb=document.getElementById('p-race'); if(rb) rb.style.display='none';
-  setToast('Type a '+G.target.length+'-letter word and press ▶','');
+  setToast(waiting ? '⏳ Get ready — the clue is coming…' : ('Type a '+G.target.length+'-letter word and press ▶'), waiting?'warn':'');
   renderDots();
-  setTimeout(()=>inp.focus(),150);
+  if(!waiting) setTimeout(()=>inp.focus(),150);
 }
 
 function renderDots(){
@@ -4047,6 +4081,7 @@ function renderGuesses(){
 
 async function submitGuess(){
   if(!G||G.over) return;
+  if(!G.clue){ setToast('⏳ Wait for the clue to appear…','warn'); return; }   // lobby: no guessing before reveal
   const inp=document.getElementById('p-input');
   const raw=clean(inp.value);
   if(raw.length!==G.target.length){ setToast('The word must be '+G.target.length+' letters.','warn'); return; }
@@ -4105,6 +4140,8 @@ function startPlayPolling(){
       const res=await api('getRoom',{ code:G.code });
       const room=res && res.room;
       if(room && (room.round||1)!==G.round){ advanceStudent(room); return; }
+      // 1b) Teacher just revealed the clue for this word (was hidden in the lobby).
+      if(room && (room.round||1)===G.round && room.clue && !G.clue){ revealStudentClue(room.clue); }
       // 2) Someone cracked it → start the shared 20s countdown for everyone still typing.
       if(room && (room.round||1)===G.round && room.firstSolvedAt && !G.over){ startRaceCountdown(room.firstSolvedAt); }
     }catch(e){}
@@ -4158,6 +4195,16 @@ function advanceStudent(room){
   setToast('🔑 New word — go!','win');
 }
 function stopPlayPolling(){ if(playPoll){ clearInterval(playPoll); playPoll=null; } }
+
+// The teacher revealed the clue (same word) → show it, start this student's clock, let them type.
+function revealStudentClue(clue){
+  if(!G) return;
+  G.clue=clue; G.startTs=Date.now();
+  const w=document.getElementById('p-clue'); if(w) w.textContent=clue;
+  document.getElementById('p-len').textContent='The answer has '+G.target.length+' letters';
+  const inp=document.getElementById('p-input'); if(inp){ inp.disabled=false; inp.placeholder=G.target.length+'-letter word…'; try{ inp.focus(); }catch(e){} }
+  setToast('🔑 Clue is here — go!','win');
+}
 
 // Lightweight, dependency-free confetti burst (canvas). Cleans itself up.
 function launchConfetti(){
