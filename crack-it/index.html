@@ -3271,16 +3271,18 @@ async function revealClue(){
 }
 
 // Advance to a prepared word automatically (playlist mode) — no typing screen.
+// From word 2 on, everyone has already joined, so the clue shows right away.
 async function advanceToWord(target, clueRaw){
   boardRound += 1;
-  const room={ target, clue:'', maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
   try{ await api('nextWord',{ code:boardCode, room }); }
   catch(e){ boardRound-=1; setToast('Could not reach the server — tap Next word again.','warn'); return; }
   boardTarget=target;
   resetBoardWord();
+  document.getElementById('b-clue').textContent=clueRaw;
   document.getElementById('b-len').textContent=target.length;
   document.getElementById('b-guesses').textContent=chosenGuesses;
-  boardHideClue(clueRaw, target.length, chosenGuesses);   // clue hidden until "Reveal clue"
+  boardShowClue();                        // no lobby after the first word — clue appears immediately
   updateRoundBadge();
   go('s-board');
 }
@@ -3376,15 +3378,16 @@ async function createRound(){
   // ── Follow-up word: keep the SAME code, just advance the round ──
   if(nextWordMode && boardCode){
     boardRound += 1;
-    const room={ target, clue:'', maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+    const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
     try{ await api('nextWord',{ code:boardCode, room }); }
     catch(e){ showErr('t-err','Could not reach the game server. Check your internet and try again.'); boardRound-=1; return; }
     nextWordMode=false;
     boardTarget=target;
     resetBoardWord();                     // fresh countdown/reveal for the new word
+    document.getElementById('b-clue').textContent=clueRaw;
     document.getElementById('b-len').textContent=target.length;
     document.getElementById('b-guesses').textContent=chosenGuesses;
-    boardHideClue(clueRaw, target.length, chosenGuesses);   // clue hidden until "Reveal clue"
+    boardShowClue();                      // after the first word everyone's joined — clue shows right away
     updateRoundBadge();
     go('s-board');                        // board keeps polling + keeps cumulative scores
     document.getElementById('t-target').value='';
