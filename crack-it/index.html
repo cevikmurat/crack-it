@@ -2374,6 +2374,9 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .lt-row .lt-w input{text-transform:uppercase;}
 .lt-x{width:26px;flex:none;border:none;background:transparent;color:var(--accent2);font-size:1.15rem;font-weight:800;cursor:pointer;line-height:1;padding:4px;opacity:.65;}
 .lt-x:hover{opacity:1;}
+/* Theme quick-add buttons: icon on top, label below — uniform for all */
+#t-list-themes .theme-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 4px;line-height:1.12;min-width:0;}
+#t-list-themes .theme-btn .te{font-size:1.2rem;line-height:1;}
 
 .back{align-self:flex-start;background:none;border:none;color:var(--muted);font-family:'Poppins',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;padding:6px 0;}
 .back:hover{color:var(--accent);}
@@ -2717,12 +2720,12 @@ body.light .btn.primary{color:#3a2a00;}
     </div>
     <div class="hint" style="margin-top:8px;">Quick-fill a ready theme (B1, 4–6 letters):</div>
     <div class="btn-row" id="t-list-themes" style="flex-wrap:wrap;gap:6px;">
-      <button type="button" class="btn ghost" onclick="addTheme('Travel')">✈️ Travel</button>
-      <button type="button" class="btn ghost" onclick="addTheme('Feelings')">😊 Feelings</button>
-      <button type="button" class="btn ghost" onclick="addTheme('Work')">💼 Work</button>
-      <button type="button" class="btn ghost" onclick="addTheme('Nature')">🌦️ Nature</button>
-      <button type="button" class="btn ghost" onclick="addTheme('Tech')">📱 Tech</button>
-      <button type="button" class="btn ghost" onclick="addTheme('Food')">🍽️ Food</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Travel')"><span class="te">✈️</span>Travel</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Feelings')"><span class="te">😊</span>Feelings</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Work')"><span class="te">💼</span>Work</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Nature')"><span class="te">🌦️</span>Nature</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Tech')"><span class="te">📱</span>Tech</button>
+      <button type="button" class="btn ghost theme-btn" onclick="addTheme('Food')"><span class="te">🍽️</span>Food</button>
     </div>
     <div class="hint" id="t-list-count" style="margin-top:6px;font-weight:700;"></div>
 
