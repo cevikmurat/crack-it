@@ -2716,6 +2716,26 @@ body.light .btn.primary{color:#3a2a00;}
       <button type="button" class="btn ghost" onclick="addTheme('Food')">🍽️ Food</button>
     </div>
     <div class="hint" id="t-list-count" style="margin-top:6px;font-weight:700;"></div>
+
+    <div class="label" style="margin-top:12px;">My saved lists (this device)</div>
+    <div class="btn-row" style="gap:6px;flex-wrap:wrap;">
+      <select id="t-saved" class="input" style="flex:2;min-width:150px;padding:10px 12px;font-size:.82rem;font-weight:700;"></select>
+      <button type="button" class="btn ghost" style="flex:1;min-width:84px;" onclick="loadSavedList()">📂 Load</button>
+      <button type="button" class="btn ghost" style="flex:1;min-width:92px;" onclick="saveNamedList()">💾 Save as…</button>
+      <button type="button" class="btn ghost" style="flex:none;width:46px;" onclick="deleteSavedList()" title="Delete selected list">🗑️</button>
+    </div>
+
+    <button type="button" class="btn ghost" style="margin-top:8px;" onclick="toggleXfer()">🔀 Move a list to another device ▾</button>
+    <div id="t-xfer-box" style="display:none;margin-top:8px;">
+      <div class="hint">Prepare at home, play on the smart board: tap <b>Copy link</b>, email it to yourself, then open that link on the board — the list loads by itself. Or <b>Copy list</b> as text, paste it here on the other device and tap <b>Load</b>.</div>
+      <textarea id="t-xfer" rows="4" class="input" placeholder="Paste a list or a share-link here…" spellcheck="false" style="resize:vertical;font-family:inherit;font-size:.8rem;font-weight:400;letter-spacing:0;line-height:1.5;"></textarea>
+      <div class="btn-row" style="gap:6px;flex-wrap:wrap;">
+        <button type="button" class="btn ghost" style="flex:1;min-width:100px;" onclick="xferCopyText()">📋 Copy list</button>
+        <button type="button" class="btn ghost" style="flex:1;min-width:100px;" onclick="xferCopyLink()">🔗 Copy link</button>
+        <button type="button" class="btn ghost" style="flex:1;min-width:120px;" onclick="xferLoad()">📥 Load into table</button>
+      </div>
+      <div class="hint" id="t-xfer-msg" style="margin-top:4px;font-weight:700;"></div>
+    </div>
   </div>
 
   <div class="err" id="t-err"></div>
@@ -3024,7 +3044,7 @@ function pickWords(n){
 
 // ── Pre-made word list ("playlist"): prepare 10–15 words up front, then just
 //    press "Next word" in class — zero typing. Lines are "WORD - clue". ──
-let playlist=[], playlistIdx=0, playlistActive=false;
+let playlist=[], playlistIdx=0, playlistActive=false, pendingSharedList=null;
 
 const READY_LISTS={
   'Travel':['FLIGHT - a journey by plane','HOTEL - where you sleep on holiday','BEACH - sandy place by the sea','COAST - where the land meets the sea','TRAIN - it runs on rails','CABIN - a small room on a ship','GUIDE - a person who shows tourists around','ABROAD - in a foreign country','CRUISE - a holiday on a big ship','VISA - a stamp that lets you enter a country'],
@@ -3112,6 +3132,89 @@ function seedRows(items){
   renumberRows();
 }
 
+// Read every non-empty row as {target,clue} (for saving / transfer).
+function readRows(){
+  const out=[];
+  document.querySelectorAll('#t-list-table .lt-row').forEach(r=>{
+    const w=r.querySelector('.lt-w input').value.trim();
+    const c=r.querySelector('.lt-c input').value.trim();
+    if(w||c) out.push({ target:clean(w), clue:c });
+  });
+  return out;
+}
+
+// ── Multiple named lists, saved on THIS device ──
+function getSaved(){ try{ const o=JSON.parse(localStorage.getItem('wcc.lists')||'{}'); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } }
+function setSaved(o){ try{ localStorage.setItem('wcc.lists', JSON.stringify(o||{})); }catch(e){} }
+function refreshSavedDropdown(){
+  const sel=document.getElementById('t-saved'); if(!sel) return;
+  const o=getSaved(), names=Object.keys(o), cur=sel.value;
+  sel.innerHTML = names.length ? names.map(n=>'<option>'+n.replace(/</g,'&lt;')+'</option>').join('') : '<option value="">(no saved lists yet)</option>';
+  if(cur && names.indexOf(cur)>=0) sel.value=cur;
+}
+function saveNamedList(){
+  const items=parseRows().items;
+  if(!items.length){ alert('Fill the table with some words first.'); return; }
+  let name=prompt('Save this list as:', ''); if(name==null) return;
+  name=String(name).trim().slice(0,40); if(!name) return;
+  const o=getSaved(); o[name]=items; setSaved(o); refreshSavedDropdown();
+  const sel=document.getElementById('t-saved'); if(sel) sel.value=name;
+  flashListMsg('💾 Saved as “'+name+'”','#2ecc71');
+}
+function loadSavedList(){
+  const sel=document.getElementById('t-saved'); if(!sel||!sel.value) return;
+  const items=getSaved()[sel.value]; if(!items) return;
+  seedRows(items); updateListCount(); flashListMsg('📂 Loaded “'+sel.value+'”','#2ecc71');
+}
+function deleteSavedList(){
+  const sel=document.getElementById('t-saved'); if(!sel||!sel.value) return;
+  if(!confirm('Delete saved list “'+sel.value+'”?')) return;
+  const o=getSaved(); delete o[sel.value]; setSaved(o); refreshSavedDropdown();
+}
+function flashListMsg(t,c){ const el=document.getElementById('t-list-count'); if(!el) return; el.textContent=t; el.style.color=c||''; setTimeout(updateListCount,1800); }
+
+// ── Move a list to another device (copy as text or link; paste to load) ──
+function listToText(items){ return (items||[]).map(it=>(it.target||'')+' - '+(it.clue||'')).join('\n'); }
+function listToLink(items){
+  try{ const p=encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(items||[]))))); return location.origin+location.pathname+'#list='+p; }catch(e){ return ''; }
+}
+function textToList(txt){
+  const m=String(txt||'').match(/#list=([^\s&#]+)/);
+  if(m){ try{ const a=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); if(Array.isArray(a)) return a; }catch(e){} }
+  const items=[];
+  String(txt||'').split(/\r?\n/).forEach(line=>{
+    const t=line.trim(); if(!t) return;
+    const p=splitPair(t); const target=clean(p.word); const clue=(p.clue||'').trim();
+    if(target.length>=3 && target.length<=10 && clue.length>=2 && !clue.toUpperCase().includes(target)) items.push({ target, clue });
+  });
+  return items;
+}
+function toggleXfer(){
+  const b=document.getElementById('t-xfer-box'); if(!b) return;
+  const open=(b.style.display==='none'||!b.style.display);
+  b.style.display=open?'block':'none';
+  if(open){ const ta=document.getElementById('t-xfer'); if(ta && !ta.value.trim()) ta.value=listToText(readRows()); }
+}
+async function copyTextOut(txt,okMsg){
+  const msg=document.getElementById('t-xfer-msg'); const ta=document.getElementById('t-xfer');
+  if(ta) ta.value=txt;
+  try{ await navigator.clipboard.writeText(txt); if(msg){ msg.textContent=okMsg; msg.style.color='#2ecc71'; } }
+  catch(e){ if(ta){ ta.focus(); ta.select(); } if(msg){ msg.textContent='Select the text above and copy it (Ctrl+C).'; msg.style.color='var(--accent2)'; } }
+}
+function xferCopyText(){ const items=readRows(); const msg=document.getElementById('t-xfer-msg');
+  if(!items.length){ if(msg){msg.textContent='Fill the table first.';msg.style.color='var(--accent2)';} return; }
+  copyTextOut(listToText(items),'✓ List copied — email/note it to yourself'); }
+function xferCopyLink(){ const items=readRows(); const msg=document.getElementById('t-xfer-msg');
+  if(!items.length){ if(msg){msg.textContent='Fill the table first.';msg.style.color='var(--accent2)';} return; }
+  const link=listToLink(items);
+  if(!link){ if(msg){msg.textContent='Could not make a link here.';msg.style.color='var(--accent2)';} return; }
+  copyTextOut(link,'✓ Link copied — open it on the other device to auto-load'); }
+function xferLoad(){ const ta=document.getElementById('t-xfer'); const msg=document.getElementById('t-xfer-msg');
+  const items=textToList(ta?ta.value:'');
+  if(!items.length){ if(msg){msg.textContent='Paste a list or a share-link first.';msg.style.color='var(--accent2)';} return; }
+  seedRows(items); updateListCount();
+  if(msg){ msg.textContent='✓ Loaded '+items.length+' words into the table'; msg.style.color='#2ecc71'; } }
+
 // Advance to a prepared word automatically (playlist mode) — no typing screen.
 async function advanceToWord(target, clueRaw){
   boardRound += 1;
@@ -3158,7 +3261,9 @@ function goTeacher(){            // start a brand-new game (fresh code)
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
   ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
-  seedRows(loadLastList());    // restore last prepared list (or 10 blank rows)
+  if(pendingSharedList && pendingSharedList.length){ seedRows(pendingSharedList); pendingSharedList=null; }
+  else seedRows(loadLastList());   // restore last prepared list (or 10 blank rows)
+  refreshSavedDropdown();
   updateListCount();
   go('s-teacher');
 }
@@ -4201,6 +4306,21 @@ function toggleFullscreen(){
     go('s-join');
     setTimeout(()=>{ const n=document.getElementById('j-name'); if(n) n.focus(); },150);
   }
+})();
+
+// ── Share-link: a link like …/#list=<data> pre-loads a prepared word list and
+//    drops the teacher straight onto the setup screen with it ready. ──
+(function handleSharedList(){
+  try{
+    const m=location.hash.match(/#list=([^\s&#]+)/);
+    if(!m) return;
+    const items=textToList(location.hash);
+    if(items && items.length){
+      pendingSharedList=items;
+      history.replaceState(null,'',location.pathname+location.search);  // clean the URL
+      setTimeout(()=>{ try{ goTeacher(); }catch(e){} }, 60);            // open setup with the list ready
+    }
+  }catch(e){}
 })();
 </script>
 </body>
