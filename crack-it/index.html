@@ -2712,6 +2712,9 @@ body.light .btn.primary{color:#3a2a00;}
   <div id="t-list-box">
     <div class="label" style="margin-top:16px;">— or — Prepare a word list (just press “Next word” in class)</div>
     <div class="hint">Fill a word + its clue on each row (10–15 is ideal). If you use this list, the single word above is ignored and the game plays through the whole list — in class you just press <b>Next word</b> and the next one appears, no typing. Your list is remembered for next time.</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:5px;">
+      <button type="button" class="btn ghost" id="t-mask-btn" style="flex:none;width:auto;padding:7px 12px;font-size:.72rem;" onclick="toggleListMask()" title="Mask the answers so the list is safe to show on the board">🙈 Hide answers</button>
+    </div>
     <div class="lt-head"><span class="h-n"></span><span class="h-w">Word</span><span class="h-c">Clue (shown to the class)</span></div>
     <div id="t-list-table"></div>
     <div class="btn-row" style="gap:6px;">
@@ -3056,7 +3059,7 @@ function pickWords(n){
 
 // ── Pre-made word list ("playlist"): prepare 10–15 words up front, then just
 //    press "Next word" in class — zero typing. Lines are "WORD - clue". ──
-let playlist=[], playlistIdx=0, playlistActive=false, pendingSharedList=null;
+let playlist=[], playlistIdx=0, playlistActive=false, pendingSharedList=null, listMasked=false;
 
 const READY_LISTS={
   'Travel':['FLIGHT - a journey by plane','HOTEL - where you sleep on holiday','BEACH - sandy place by the sea','COAST - where the land meets the sea','TRAIN - it runs on rails','CABIN - a small room on a ship','GUIDE - a person who shows tourists around','ABROAD - in a foreign country','CRUISE - a holiday on a big ship','VISA - a stamp that lets you enter a country'],
@@ -3081,9 +3084,16 @@ function addRow(word, clue){
   tb.appendChild(row);
   row.querySelector('.lt-w input').value=(word||'').toUpperCase();
   row.querySelector('.lt-c input').value=clue||'';
+  if(listMasked){ const wi=row.querySelector('.lt-w input'); if(wi) wi.type='password'; }
   renumberRows();
   return row;
 }
+// Mask / reveal the answer (Word) column so the list is safe on a projector.
+function applyMask(){
+  document.querySelectorAll('#t-list-table .lt-w input').forEach(i=>{ i.type = listMasked ? 'password' : 'text'; });
+  const b=document.getElementById('t-mask-btn'); if(b) b.innerHTML = listMasked ? '👁 Show answers' : '🙈 Hide answers';
+}
+function toggleListMask(){ listMasked=!listMasked; applyMask(); }
 function renumberRows(){ let i=0; document.querySelectorAll('#t-list-table .lt-row .lt-n').forEach(s=>{ i++; s.textContent=i; }); }
 function removeRow(btn){
   const row=btn.closest('.lt-row'); if(row) row.remove();
@@ -3273,9 +3283,10 @@ function goTeacher(){            // start a brand-new game (fresh code)
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
   ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
-  if(pendingSharedList && pendingSharedList.length){ seedRows(pendingSharedList); pendingSharedList=null; }
-  else seedRows(loadLastList());   // restore last prepared list (or 10 blank rows)
+  if(pendingSharedList && pendingSharedList.length){ seedRows(pendingSharedList); pendingSharedList=null; listMasked=true; }
+  else { seedRows(loadLastList()); listMasked=false; }   // restore last prepared list (or 10 blank rows)
   refreshSavedDropdown();
+  applyMask();
   updateListCount();
   go('s-teacher');
 }
