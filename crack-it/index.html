@@ -2713,9 +2713,9 @@ body.light .btn.primary{color:#3a2a00;}
     <div class="label" style="margin-top:16px;">— or — Prepare a word list (just press “Next word” in class)</div>
     <div class="hint">Fill a word + its clue on each row (10–15 is ideal). If you use this list, the single word above is ignored and the game plays through the whole list — in class you just press <b>Next word</b> and the next one appears, no typing. Your list is remembered for next time.</div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:5px;">
-      <button type="button" class="btn ghost" id="t-mask-btn" style="flex:none;width:auto;padding:7px 12px;font-size:.72rem;" onclick="toggleListMask()" title="Mask the answers so the list is safe to show on the board">🙈 Hide answers</button>
+      <button type="button" class="btn ghost" id="t-mask-btn" style="flex:none;width:auto;padding:7px 12px;font-size:.72rem;" onclick="toggleListMask()" title="Hide the whole list so it is safe to show on the board">🙈 Hide</button>
     </div>
-    <div class="lt-head"><span class="h-n"></span><span class="h-w">Word</span><span class="h-c">Clue (shown to the class)</span></div>
+    <div class="lt-head" id="t-list-head"><span class="h-n"></span><span class="h-w">Word</span><span class="h-c">Clue (shown to the class)</span></div>
     <div id="t-list-table"></div>
     <div class="btn-row" style="gap:6px;">
       <button type="button" class="btn ghost" onclick="addRow()">➕ Add word</button>
@@ -3084,14 +3084,15 @@ function addRow(word, clue){
   tb.appendChild(row);
   row.querySelector('.lt-w input').value=(word||'').toUpperCase();
   row.querySelector('.lt-c input').value=clue||'';
-  if(listMasked){ const wi=row.querySelector('.lt-w input'); if(wi) wi.type='password'; }
   renumberRows();
   return row;
 }
-// Mask / reveal the answer (Word) column so the list is safe on a projector.
+// Hide / show the whole list (words + clues) so it is safe on a projector.
 function applyMask(){
-  document.querySelectorAll('#t-list-table .lt-w input').forEach(i=>{ i.type = listMasked ? 'password' : 'text'; });
-  const b=document.getElementById('t-mask-btn'); if(b) b.innerHTML = listMasked ? '👁 Show answers' : '🙈 Hide answers';
+  const show=!listMasked;
+  const tb=document.getElementById('t-list-table'); if(tb) tb.style.display = show ? '' : 'none';
+  const hd=document.getElementById('t-list-head'); if(hd) hd.style.display = show ? '' : 'none';
+  const b=document.getElementById('t-mask-btn'); if(b) b.innerHTML = listMasked ? '👁 Show' : '🙈 Hide';
 }
 function toggleListMask(){ listMasked=!listMasked; applyMask(); }
 function renumberRows(){ let i=0; document.querySelectorAll('#t-list-table .lt-row .lt-n').forEach(s=>{ i++; s.textContent=i; }); }
