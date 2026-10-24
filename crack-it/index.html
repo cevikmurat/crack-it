@@ -2613,13 +2613,22 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
   .board-cols .qr-box{order:2;position:sticky;top:16px;}
   #s-board .qr-toggle{display:none;}            /* no need to shrink when QR has its own column */
 }
-body.light{--bg:#e9edf5;--surface:#ffffff;--surface2:#eef1f8;--text:#1b1d28;--muted:#6c7286;--border:#d8dded;--accent:#eab308;--accent2:#e0531f;--green:#0aa564;--blue:#2f6fd0;--accent-ink:#b45309;}
-body.light::before{background:radial-gradient(ellipse at 20% 10%,rgba(224,90,43,.05) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(47,111,208,.05) 0%,transparent 55%);}
-body.light .logo,body.light .logo .crack,body.light .card-title,body.light .roomcode,body.light .clue-len,body.light .lb-title,body.light .result-title,body.light .glogo,body.light .lb-rank.r1,body.light .toast.win,body.light .toast.warn,body.light .note a{color:#b45309;}
-body.light .step-btn.sel{color:#b45309;background:rgba(234,179,8,.16);}
-body.light .guess-fb .l{color:#b45309;}
-body.light .err{color:#c0341a;}
-body.light .theme-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
+body.light{--bg:#573099;--surface:#653abd;--surface2:#432488;--text:#f7f2ff;--muted:#d0c2f2;--border:#7b57ce;--accent:#ffc93c;--accent2:#ff5ca3;--green:#44e08a;--blue:#8a63ff;--accent-ink:#ffd873;}
+/* Day mode (UNIVERSE look): purple page, magenta/violet cards, gold accents */
+body.light .card{background:#653abd;border-color:#845fd6;}
+body.light .input,body.light .lt-row input,body.light #t-saved,body.light .step-btn{background:#432488;border-color:#7b57ce;color:#f7f2ff;}
+body.light #home-teacher{background:linear-gradient(135deg,#ff5ca3,#cc2aa8);border-color:#ff7ab6;}
+body.light #home-teacher .card-title{color:#ffffff;}
+body.light #home-student{background:linear-gradient(135deg,#9270ff,#653abd);border-color:#b197ff;}
+body.light #home-student .card-title{color:#ffd873;}
+body.light #home-teacher .card-desc,body.light #home-student .card-desc{color:#f3ecff;}
+body.light #home-teacher .card-emoji,body.light #home-student .card-emoji{filter:none;}
+body.light::before{background:radial-gradient(ellipse at 20% 10%,rgba(255,92,163,.12) 0%,transparent 55%),radial-gradient(ellipse at 80% 90%,rgba(68,224,138,.12) 0%,transparent 55%);}
+body.light .logo,body.light .logo .crack,body.light .card-title,body.light .roomcode,body.light .clue-len,body.light .lb-title,body.light .result-title,body.light .glogo,body.light .lb-rank.r1,body.light .toast.win,body.light .toast.warn,body.light .note a{color:#ffd873;}
+body.light .step-btn.sel{color:#ffd873;background:rgba(255,201,60,.20);border-color:var(--accent);}
+body.light .guess-fb .l{color:#ffd873;}
+body.light .err{color:#ff9a9a;}
+body.light .theme-toggle{box-shadow:0 2px 10px rgba(0,0,0,.25);}
 body.light .btn.primary{color:#3a2a00;}
 </style>
 </head>
@@ -2634,7 +2643,7 @@ body.light .btn.primary{color:#3a2a00;}
   <div class="logo-sub">Classroom Edition</div>
   <div class="tagline">A vocabulary code-cracking race. The teacher hides an English word and gives a clue — students compete to crack it first.</div>
 
-  <div class="card tap" onclick="goTeacher()">
+  <div class="card tap" id="home-teacher" onclick="goTeacher()">
     <div class="card-row">
       <span class="card-emoji">🧑‍🏫</span>
       <div>
@@ -2644,7 +2653,7 @@ body.light .btn.primary{color:#3a2a00;}
     </div>
   </div>
 
-  <div class="card tap" onclick="go('s-join')">
+  <div class="card tap" id="home-student" onclick="go('s-join')">
     <div class="card-row">
       <span class="card-emoji">🧑‍🎓</span>
       <div>
@@ -2654,12 +2663,12 @@ body.light .btn.primary{color:#3a2a00;}
     </div>
   </div>
 
-  <div class="card" style="background:var(--surface2);">
+  <div class="card">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How the clues work 💡</div>
     <div class="card-desc">🗝️ = a letter that's in the <b style="color:var(--green)">right place</b> &nbsp;•&nbsp; 🔓 = a correct letter in the <b style="color:var(--accent-ink)">wrong place</b>. Every guess must have the same number of letters as the secret word.</div>
   </div>
 
-  <div class="card" style="background:var(--surface2);">
+  <div class="card">
     <div class="card-title" style="font-size:.78rem;margin-bottom:6px;">How points work ⭐</div>
     <div class="card-desc"><b>Be the first to crack</b> the word for a big bonus — but once someone cracks it, the rest of the class has just <b>35 seconds</b> to get in! <b>1000</b> for cracking it · <b>+500</b> first · podium bonus for the next few (2nd +200 · 3rd +150 · 4th +100) · each <b>💡 hint costs 400</b> (reveals a random letter, up to 2). Points <b>add up across words</b> — top the class!</div>
   </div>
