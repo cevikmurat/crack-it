@@ -2681,6 +2681,23 @@ body.light .btn.primary{color:#3a2a00;}
     <button class="step-btn" data-w="0" onclick="pickWords(0)" title="No limit">∞</button>
   </div>
 
+  <div id="t-list-box">
+    <div class="label" style="margin-top:16px;">— or — Prepare a word list (just press “Next word” in class)</div>
+    <div class="hint">One per line as <b>WORD - clue</b>. If you fill this list, the single word above is ignored and the game plays through the whole list automatically — no typing in class. Your list is remembered for next time.</div>
+    <textarea class="input" id="t-list" rows="5" placeholder="FLOWER - a plant with colourful petals&#10;SPOON - a tool in the kitchen&#10;ISLAND - land with water all around" autocomplete="off" spellcheck="false" oninput="updateListCount()" style="resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
+    <div class="hint" style="margin-top:6px;">Quick-add a ready theme (B1, 4–6 letters):</div>
+    <div class="btn-row" id="t-list-themes" style="flex-wrap:wrap;gap:6px;">
+      <button type="button" class="btn ghost" onclick="addTheme('Travel')">✈️ Travel</button>
+      <button type="button" class="btn ghost" onclick="addTheme('Feelings')">😊 Feelings</button>
+      <button type="button" class="btn ghost" onclick="addTheme('Work')">💼 Work</button>
+      <button type="button" class="btn ghost" onclick="addTheme('Nature')">🌦️ Nature</button>
+      <button type="button" class="btn ghost" onclick="addTheme('Tech')">📱 Tech</button>
+      <button type="button" class="btn ghost" onclick="addTheme('Food')">🍽️ Food</button>
+      <button type="button" class="btn ghost" onclick="clearList()">🗑️ Clear</button>
+    </div>
+    <div class="hint" id="t-list-count" style="margin-top:6px;font-weight:700;"></div>
+  </div>
+
   <div class="err" id="t-err"></div>
   <button class="btn primary" id="t-start" style="margin-top:10px;" onclick="createRound()">🔐 Start the round</button>
 </div>
@@ -2985,6 +3002,72 @@ function pickWords(n){
   document.querySelectorAll('#t-words .step-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.w===n));
 }
 
+// ── Pre-made word list ("playlist"): prepare 10–15 words up front, then just
+//    press "Next word" in class — zero typing. Lines are "WORD - clue". ──
+let playlist=[], playlistIdx=0, playlistActive=false;
+
+const READY_LISTS={
+  'Travel':['FLIGHT - a journey by plane','HOTEL - where you sleep on holiday','BEACH - sandy place by the sea','COAST - where the land meets the sea','TRAIN - it runs on rails','CABIN - a small room on a ship','GUIDE - a person who shows tourists around','ABROAD - in a foreign country','CRUISE - a holiday on a big ship','VISA - a stamp that lets you enter a country'],
+  'Feelings':['CALM - relaxed and not worried','KIND - gentle and caring to others','PROUD - pleased about what you did','BRAVE - not afraid of danger','ANGRY - very annoyed','BORED - tired because nothing is happening','SCARED - feeling afraid','LONELY - sad because you are alone','CLEVER - quick to learn and understand','HAPPY - full of joy'],
+  'Work':['BOSS - the person in charge at work','STAFF - all the workers in a place','SHIFT - a set period of work hours','HIRED - given a job','WAGES - weekly pay for work','SALARY - the money you earn each month','OFFICE - where people work at desks','CAREER - your working life over years','EXPERT - someone very skilled at something','CLIENT - a person who pays for a service'],
+  'Nature':['FLOOD - too much water covering the land','STORM - violent weather with wind and rain','CLOUD - white or grey shape in the sky','RIVER - water flowing to the sea','FROST - thin white ice on cold mornings','BREEZE - a gentle wind','VALLEY - low land between hills','FOREST - a large area of trees','ISLAND - land with water all around','DESERT - a dry, sandy place'],
+  'Tech':['MOUSE - you move this to click','EMAIL - a message sent online','CABLE - a wire that connects devices','VIRUS - a harmful program on a computer','LOGIN - the step to enter your account','SOUND - what you hear from speakers','SCREEN - the part you look at on a phone','ONLINE - connected to the internet','DEVICE - a phone, tablet or laptop','UPDATE - a newer version of an app'],
+  'Food':['BREAD - made from flour, baked in an oven','SUGAR - sweet white grains','JUICE - drink squeezed from fruit','SNACK - a small quick thing to eat','SPICY - hot and strong, like chilli','PLATE - you put your food on this','SWEET - tasting of sugar','BAKERY - the shop that sells bread','DINNER - the evening meal','HUNGRY - needing to eat']
+};
+
+function addTheme(name){
+  const ta=document.getElementById('t-list'); if(!ta) return;
+  const lines=(READY_LISTS[name]||[]).join('\n');
+  ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/,'')+'\n' : '') + lines + '\n';
+  updateListCount(); ta.scrollTop=ta.scrollHeight;
+}
+function clearList(){ const ta=document.getElementById('t-list'); if(ta) ta.value=''; updateListCount(); }
+
+// Turn the textarea into a clean [{target,clue}] queue; report unparseable lines.
+function parsePlaylist(raw){
+  const lines=String(raw||'').split(/\r?\n/);
+  const items=[], bad=[]; let ln=0;
+  for(const line of lines){
+    ln++; const t=line.trim(); if(!t) continue;
+    const m=t.match(/^(\S+)\s*[-–:,\t]\s*(.+)$/);
+    if(!m){ bad.push('#'+ln); continue; }
+    const target=clean(m[1]); const clue=m[2].trim();
+    if(target.length<3||target.length>10){ bad.push('#'+ln); continue; }
+    if(clue.length<2){ bad.push('#'+ln); continue; }
+    if(clue.toUpperCase().includes(target)){ bad.push('#'+ln); continue; }
+    items.push({ target, clue });
+  }
+  return { items, bad };
+}
+function updateListCount(){
+  const ta=document.getElementById('t-list'), el=document.getElementById('t-list-count');
+  if(!ta||!el) return;
+  const raw=ta.value.trim();
+  if(!raw){ el.textContent=''; return; }
+  const p=parsePlaylist(raw);
+  let msg='✅ '+p.items.length+' word'+(p.items.length===1?'':'s')+' ready';
+  if(p.bad.length) msg+=' · ⚠️ check line'+(p.bad.length>1?'s':'')+' '+p.bad.join(', ');
+  el.textContent=msg;
+  el.style.color = p.bad.length ? '#c0392b' : '#0a8a54';
+}
+function saveLastList(txt){ try{ localStorage.setItem('wcc.playlist', txt); }catch(e){} }
+function loadLastList(){ try{ return localStorage.getItem('wcc.playlist')||''; }catch(e){ return ''; } }
+
+// Advance to a prepared word automatically (playlist mode) — no typing screen.
+async function advanceToWord(target, clueRaw){
+  boardRound += 1;
+  const room={ target, clue:clueRaw, maxGuesses:chosenGuesses, round:boardRound, totalWords:boardTotalWords, createdAt:Date.now() };
+  try{ await api('nextWord',{ code:boardCode, room }); }
+  catch(e){ boardRound-=1; setToast('Could not reach the server — tap Next word again.','warn'); return; }
+  boardTarget=target;
+  resetBoardWord();
+  document.getElementById('b-clue').textContent=clueRaw;
+  document.getElementById('b-len').textContent=target.length;
+  document.getElementById('b-guesses').textContent=chosenGuesses;
+  updateRoundBadge();
+  go('s-board');
+}
+
 // Secret word stays masked (••••) by default so it's safe to type on a projected
 // smart board; the teacher can briefly reveal it to double-check.
 function toggleSecret(){
@@ -3011,21 +3094,31 @@ let boardTarget='', boardFirstAt=0, boardRevealed=false, boardTick=null, boardPr
 let leadToastTs=0;
 
 function goTeacher(){            // start a brand-new game (fresh code)
-  nextWordMode=false;
+  nextWordMode=false; playlistActive=false;
   const h=document.getElementById('t-title'); if(h) h.textContent='Create a round';
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
-  ['t-words','t-words-label'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
+  ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
+  const ta=document.getElementById('t-list'); if(ta && !ta.value.trim()) ta.value=loadLastList();
+  updateListCount();
   go('s-teacher');
 }
 function goNextWord(){           // add the NEXT word to the current room (same code)
   if(!boardCode) return;
   // Enforce the chosen number of words — no word past the limit; show the finale instead.
   if(boardTotalWords>0 && boardRound>=boardTotalWords){ showFinale(); return; }
+  // Playlist mode: pull the next prepared word automatically — no typing screen.
+  if(playlistActive){
+    const nx=playlist[playlistIdx+1];
+    if(!nx){ showFinale(); return; }
+    playlistIdx++;
+    advanceToWord(nx.target, nx.clue);
+    return;
+  }
   nextWordMode=true;
   const h=document.getElementById('t-title'); if(h) h.textContent='Next word';
   const b=document.getElementById('t-start'); if(b) b.textContent='➡️ Start next word';
-  ['t-words','t-words-label'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='none';});
+  ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='none';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
   hideSecret();
   go('s-teacher');
@@ -3038,6 +3131,23 @@ function teacherBack(){
 async function createRound(){
   hideErr('t-err');
   initAudio();          // unlock sound on this gesture so the board can chime when someone wins
+
+  // ── Playlist mode: if a prepared list is filled, the game plays through it. ──
+  playlistActive=false;
+  if(!nextWordMode){
+    const listRaw=(document.getElementById('t-list')?.value||'').trim();
+    if(listRaw){
+      const p=parsePlaylist(listRaw);
+      if(p.items.length===0){ showErr('t-err','Add at least one valid line to the list: WORD - clue'); return; }
+      if(p.bad.length){ showErr('t-err','Fix these list lines (WORD 3–10 letters; clue must not contain the word): '+p.bad.join(', ')); return; }
+      playlist=p.items; playlistIdx=0; playlistActive=true;
+      saveLastList(listRaw);
+      document.getElementById('t-target').value=p.items[0].target;   // first word comes from the list
+      document.getElementById('t-clue').value=p.items[0].clue;
+      chosenWords=p.items.length;                                     // list length = game length
+    }
+  }
+
   const target=clean(document.getElementById('t-target').value);
   const clueRaw=document.getElementById('t-clue').value.trim();
   if(target.length<3||target.length>10){ showErr('t-err','The secret word must be 3–10 letters (A–Z only).'); return; }
