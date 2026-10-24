@@ -2359,6 +2359,22 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .btn-row{display:flex;gap:8px;width:100%;}
 .btn-row .btn{flex:1;}
 
+/* ── Prepare-a-word-list table (Word | Clue rows) ── */
+.lt-head{display:flex;gap:6px;width:100%;font-size:.58rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:2px 0 5px;}
+.lt-head .h-n{width:22px;flex:none;}
+.lt-head .h-w{width:116px;flex:none;}
+.lt-head .h-c{flex:1;}
+.lt-row{display:flex;gap:6px;width:100%;align-items:center;margin:5px 0;}
+.lt-row .lt-n{width:22px;flex:none;text-align:right;color:var(--muted);font-size:.72rem;font-weight:700;}
+.lt-row .lt-w{width:116px;flex:none;}
+.lt-row .lt-c{flex:1;min-width:0;}
+.lt-row input{width:100%;box-sizing:border-box;padding:10px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-family:'Poppins',sans-serif;font-size:.9rem;font-weight:700;color:var(--text);outline:none;letter-spacing:.03em;}
+.lt-row input:focus{border-color:var(--accent);}
+.lt-row input::placeholder{color:var(--muted);font-weight:400;letter-spacing:0;}
+.lt-row .lt-w input{text-transform:uppercase;}
+.lt-x{width:26px;flex:none;border:none;background:transparent;color:var(--accent2);font-size:1.15rem;font-weight:800;cursor:pointer;line-height:1;padding:4px;opacity:.65;}
+.lt-x:hover{opacity:1;}
+
 .back{align-self:flex-start;background:none;border:none;color:var(--muted);font-family:'Poppins',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;padding:6px 0;}
 .back:hover{color:var(--accent);}
 
@@ -2683,9 +2699,14 @@ body.light .btn.primary{color:#3a2a00;}
 
   <div id="t-list-box">
     <div class="label" style="margin-top:16px;">— or — Prepare a word list (just press “Next word” in class)</div>
-    <div class="hint">One per line as <b>WORD - clue</b>. If you fill this list, the single word above is ignored and the game plays through the whole list automatically — no typing in class. Your list is remembered for next time.</div>
-    <textarea class="input" id="t-list" rows="5" placeholder="FLOWER - a plant with colourful petals&#10;SPOON - a tool in the kitchen&#10;ISLAND - land with water all around" autocomplete="off" spellcheck="false" oninput="updateListCount()" style="resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
-    <div class="hint" style="margin-top:6px;">Quick-add a ready theme (B1, 4–6 letters):</div>
+    <div class="hint">Fill a word + its clue on each row (10–15 is ideal). If you use this list, the single word above is ignored and the game plays through the whole list — in class you just press <b>Next word</b> and the next one appears, no typing. Your list is remembered for next time.</div>
+    <div class="lt-head"><span class="h-n"></span><span class="h-w">Word</span><span class="h-c">Clue (shown to the class)</span></div>
+    <div id="t-list-table"></div>
+    <div class="btn-row" style="gap:6px;">
+      <button type="button" class="btn ghost" onclick="addRow()">➕ Add word</button>
+      <button type="button" class="btn ghost" onclick="clearList()">🗑️ Clear all</button>
+    </div>
+    <div class="hint" style="margin-top:8px;">Quick-fill a ready theme (B1, 4–6 letters):</div>
     <div class="btn-row" id="t-list-themes" style="flex-wrap:wrap;gap:6px;">
       <button type="button" class="btn ghost" onclick="addTheme('Travel')">✈️ Travel</button>
       <button type="button" class="btn ghost" onclick="addTheme('Feelings')">😊 Feelings</button>
@@ -2693,7 +2714,6 @@ body.light .btn.primary{color:#3a2a00;}
       <button type="button" class="btn ghost" onclick="addTheme('Nature')">🌦️ Nature</button>
       <button type="button" class="btn ghost" onclick="addTheme('Tech')">📱 Tech</button>
       <button type="button" class="btn ghost" onclick="addTheme('Food')">🍽️ Food</button>
-      <button type="button" class="btn ghost" onclick="clearList()">🗑️ Clear</button>
     </div>
     <div class="hint" id="t-list-count" style="margin-top:6px;font-weight:700;"></div>
   </div>
@@ -3015,43 +3035,82 @@ const READY_LISTS={
   'Food':['BREAD - made from flour, baked in an oven','SUGAR - sweet white grains','JUICE - drink squeezed from fruit','SNACK - a small quick thing to eat','SPICY - hot and strong, like chilli','PLATE - you put your food on this','SWEET - tasting of sugar','BAKERY - the shop that sells bread','DINNER - the evening meal','HUNGRY - needing to eat']
 };
 
-function addTheme(name){
-  const ta=document.getElementById('t-list'); if(!ta) return;
-  const lines=(READY_LISTS[name]||[]).join('\n');
-  ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/,'')+'\n' : '') + lines + '\n';
-  updateListCount(); ta.scrollTop=ta.scrollHeight;
-}
-function clearList(){ const ta=document.getElementById('t-list'); if(ta) ta.value=''; updateListCount(); }
+// Split a "WORD - clue" ready-theme string into its two parts.
+function splitPair(s){ const m=String(s).match(/^(\S+)\s*[-–:,\t]\s*(.+)$/); return m?{word:m[1],clue:m[2].trim()}:{word:'',clue:String(s)}; }
 
-// Turn the textarea into a clean [{target,clue}] queue; report unparseable lines.
-function parsePlaylist(raw){
-  const lines=String(raw||'').split(/\r?\n/);
-  const items=[], bad=[]; let ln=0;
-  for(const line of lines){
-    ln++; const t=line.trim(); if(!t) continue;
-    const m=t.match(/^(\S+)\s*[-–:,\t]\s*(.+)$/);
-    if(!m){ bad.push('#'+ln); continue; }
-    const target=clean(m[1]); const clue=m[2].trim();
-    if(target.length<3||target.length>10){ bad.push('#'+ln); continue; }
-    if(clue.length<2){ bad.push('#'+ln); continue; }
-    if(clue.toUpperCase().includes(target)){ bad.push('#'+ln); continue; }
+// Add one Word|Clue row to the table.
+function addRow(word, clue){
+  const tb=document.getElementById('t-list-table'); if(!tb) return null;
+  const row=document.createElement('div'); row.className='lt-row';
+  row.innerHTML='<span class="lt-n"></span>'
+    +'<span class="lt-w"><input type="text" maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="WORD" oninput="this.value=this.value.toUpperCase();updateListCount()"></span>'
+    +'<span class="lt-c"><input type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="clue the class sees" oninput="updateListCount()"></span>'
+    +'<button type="button" class="lt-x" title="Remove this word" onclick="removeRow(this)">×</button>';
+  tb.appendChild(row);
+  row.querySelector('.lt-w input').value=(word||'').toUpperCase();
+  row.querySelector('.lt-c input').value=clue||'';
+  renumberRows();
+  return row;
+}
+function renumberRows(){ let i=0; document.querySelectorAll('#t-list-table .lt-row .lt-n').forEach(s=>{ i++; s.textContent=i; }); }
+function removeRow(btn){
+  const row=btn.closest('.lt-row'); if(row) row.remove();
+  if(!document.querySelector('#t-list-table .lt-row')) addRow();   // always keep at least one row
+  renumberRows(); updateListCount();
+}
+function clearList(){ const tb=document.getElementById('t-list-table'); if(tb) tb.innerHTML=''; for(let i=0;i<10;i++) addRow(); updateListCount(); }
+
+// Fill a ready theme into the table: use blank rows first, then grow.
+function addTheme(name){
+  (READY_LISTS[name]||[]).forEach(s=>{
+    const p=splitPair(s); let placed=false;
+    for(const r of document.querySelectorAll('#t-list-table .lt-row')){
+      const wi=r.querySelector('.lt-w input'), ci=r.querySelector('.lt-c input');
+      if(!wi.value.trim() && !ci.value.trim()){ wi.value=p.word.toUpperCase(); ci.value=p.clue; placed=true; break; }
+    }
+    if(!placed) addRow(p.word, p.clue);
+  });
+  renumberRows(); updateListCount();
+}
+
+// Read the table into a clean [{target,clue}] queue; report problem rows.
+function parseRows(){
+  const rows=document.querySelectorAll('#t-list-table .lt-row');
+  const items=[], bad=[]; let n=0;
+  rows.forEach(r=>{
+    n++;
+    const w=r.querySelector('.lt-w input').value.trim();
+    const c=r.querySelector('.lt-c input').value.trim();
+    if(!w && !c) return;                                  // empty row — ignored
+    const target=clean(w), clue=c;
+    if(target.length<3||target.length>10){ bad.push(n); return; }
+    if(clue.length<2){ bad.push(n); return; }
+    if(clue.toUpperCase().includes(target)){ bad.push(n); return; }
     items.push({ target, clue });
-  }
+  });
   return { items, bad };
 }
 function updateListCount(){
-  const ta=document.getElementById('t-list'), el=document.getElementById('t-list-count');
-  if(!ta||!el) return;
-  const raw=ta.value.trim();
-  if(!raw){ el.textContent=''; return; }
-  const p=parsePlaylist(raw);
+  const el=document.getElementById('t-list-count'); if(!el) return;
+  const p=parseRows();
+  if(p.items.length===0 && p.bad.length===0){ el.textContent=''; return; }
   let msg='✅ '+p.items.length+' word'+(p.items.length===1?'':'s')+' ready';
-  if(p.bad.length) msg+=' · ⚠️ check line'+(p.bad.length>1?'s':'')+' '+p.bad.join(', ');
+  if(p.bad.length) msg+=' · ⚠️ check row'+(p.bad.length>1?'s':'')+' '+p.bad.join(', ');
   el.textContent=msg;
-  el.style.color = p.bad.length ? '#c0392b' : '#0a8a54';
+  el.style.color = p.bad.length ? 'var(--accent2)' : '#2ecc71';
 }
-function saveLastList(txt){ try{ localStorage.setItem('wcc.playlist', txt); }catch(e){} }
-function loadLastList(){ try{ return localStorage.getItem('wcc.playlist')||''; }catch(e){ return ''; } }
+
+// Remember / restore the prepared list (as structured rows).
+function saveLastList(items){ try{ localStorage.setItem('wcc.playlist', JSON.stringify(items||[])); }catch(e){} }
+function loadLastList(){ try{ const s=localStorage.getItem('wcc.playlist'); const a=s?JSON.parse(s):[]; return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function seedRows(items){
+  const tb=document.getElementById('t-list-table'); if(!tb) return;
+  tb.innerHTML='';
+  (items||[]).forEach(it=> addRow(it.target||it.word||'', it.clue||''));
+  let have=document.querySelectorAll('#t-list-table .lt-row').length;
+  while(have<10){ addRow(); have++; }          // always show at least 10 rows to fill
+  renumberRows();
+}
 
 // Advance to a prepared word automatically (playlist mode) — no typing screen.
 async function advanceToWord(target, clueRaw){
@@ -3099,7 +3158,7 @@ function goTeacher(){            // start a brand-new game (fresh code)
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
   ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
-  const ta=document.getElementById('t-list'); if(ta && !ta.value.trim()) ta.value=loadLastList();
+  seedRows(loadLastList());    // restore last prepared list (or 10 blank rows)
   updateListCount();
   go('s-teacher');
 }
@@ -3132,16 +3191,14 @@ async function createRound(){
   hideErr('t-err');
   initAudio();          // unlock sound on this gesture so the board can chime when someone wins
 
-  // ── Playlist mode: if a prepared list is filled, the game plays through it. ──
+  // ── Playlist mode: if the prepared table has words, the game plays through it. ──
   playlistActive=false;
   if(!nextWordMode){
-    const listRaw=(document.getElementById('t-list')?.value||'').trim();
-    if(listRaw){
-      const p=parsePlaylist(listRaw);
-      if(p.items.length===0){ showErr('t-err','Add at least one valid line to the list: WORD - clue'); return; }
-      if(p.bad.length){ showErr('t-err','Fix these list lines (WORD 3–10 letters; clue must not contain the word): '+p.bad.join(', ')); return; }
+    const p=parseRows();
+    if(p.items.length>0 || p.bad.length>0){
+      if(p.bad.length){ showErr('t-err','Fix these rows (word 3–10 letters; clue must not contain the word): '+p.bad.join(', ')); return; }
       playlist=p.items; playlistIdx=0; playlistActive=true;
-      saveLastList(listRaw);
+      saveLastList(p.items);
       document.getElementById('t-target').value=p.items[0].target;   // first word comes from the list
       document.getElementById('t-clue').value=p.items[0].clue;
       chosenWords=p.items.length;                                     // list length = game length
