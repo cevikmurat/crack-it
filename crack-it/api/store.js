@@ -29,10 +29,13 @@ const CODE_RE   = /^[A-Z0-9]{3,6}$/;    // room codes are short + alphanumeric
 const ROOM_TTL  = 60 * 60 * 24;         // rooms/scores auto-expire after 24h
 const PING_TTL  = 60 * 10;              // presence records live ~10 min
 const PING_FRESH_MS = 12000;            // "racing" = a heartbeat in the last 12s
+const LIST_TTL  = 60 * 60 * 24 * 60;    // shared word lists live 60 days
+const LIST_CODE_RE = /^[A-Z0-9]{4,8}$/; // share codes
 
 const roomKey   = (code) => 'wcc:room:'   + code;
 const scoresKey = (code) => 'wcc:scores:' + code;
 const pingKey   = (code) => 'wcc:ping:'   + code;
+const listKey   = (code) => 'wcc:list:'   + code;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -142,10 +145,52 @@ export default async function handler(req, res) {
       return res.status(200).json({ pings });
     }
 
+    // ── Teacher saves a word list and gets a short share CODE (for other teachers) ──
+    if (action === 'putList') {
+      const items = sanitizeList(body.items);
+      if (!items) return res.status(400).json({ error: 'bad list' });
+      let outCode = null;
+      for (let t = 0; t < 12; t++) {
+        const c = makeListCode();
+        const ok = await redis.set(listKey(c), items, { nx: true, ex: LIST_TTL });
+        if (ok === 'OK' || ok === true) { outCode = c; break; }
+      }
+      if (!outCode) return res.status(500).json({ error: 'no code' });
+      return res.status(200).json({ code: outCode });
+    }
+
+    // ── Anyone loads a shared word list by its short code ──
+    if (action === 'getList') {
+      if (!LIST_CODE_RE.test(code)) return res.status(200).json({ items: null });
+      const items = await redis.get(listKey(code));
+      return res.status(200).json({ items: items || null });
+    }
+
     return res.status(400).json({ error: 'unknown action' });
   } catch (e) {
     return res.status(500).json({ error: 'server', detail: String((e && e.message) || e) });
   }
+}
+
+// ── Shared word list: validate/clamp, and generate a short, unambiguous code ──
+function sanitizeList(arr) {
+  if (!Array.isArray(arr)) return null;
+  const out = [];
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') continue;
+    const target = String(it.target || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 10);
+    const clue = String(it.clue || '').slice(0, 60);
+    if (target.length < 3) continue;
+    out.push({ target, clue });
+    if (out.length >= 60) break;
+  }
+  return out.length ? out : null;
+}
+function makeListCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+  let s = '';
+  for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)];
+  return s;
 }
 
 // ── Validation / clamping so nothing weird ends up in the database ──
