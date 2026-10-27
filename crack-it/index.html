@@ -2392,6 +2392,12 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .roomcode-clue b{color:var(--green);font-family:'Poppins',sans-serif;letter-spacing:.04em;}
 .clue-strip{width:100%;text-align:center;font-size:.82rem;color:var(--muted);padding:3px 0 5px;line-height:1.4;}
 .clue-strip b{color:var(--green);font-family:'Poppins',sans-serif;letter-spacing:.04em;}
+/* Board clue: big, readable from the back of the class */
+#b-cluestrip{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 0 6px;}
+#b-cluestrip .cs-label{font-size:.56rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);}
+#b-cluestrip .cs-clue{font-family:'Poppins',sans-serif;font-weight:800;color:var(--green);font-size:1.7rem;line-height:1.1;letter-spacing:.02em;word-break:break-word;}
+#b-cluestrip .cs-meta{font-size:.95rem;color:var(--muted);letter-spacing:.02em;font-weight:600;}
+@media(min-width:760px){ #b-cluestrip .cs-clue{font-size:2.9rem;} #b-cluestrip .cs-meta{font-size:1.4rem;} #b-cluestrip .cs-label{font-size:.62rem;} }
 .qr-code-line{font-size:.9rem;font-weight:700;color:#4a4a5a;text-align:center;letter-spacing:.02em;margin-top:-2px;}
 .qr-code-line b{color:#111;font-family:'Poppins',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:.16em;}
 
@@ -2526,9 +2532,9 @@ body.light .fs-toggle{box-shadow:0 2px 10px rgba(30,40,80,.12);}
 .qr-zoom-hint{font-size:.9rem;color:#6c7286;}
 /* ── Race / crack banner (board + student) + lead toast ── */
 .racing{width:100%;text-align:center;font-size:1rem;font-weight:700;color:var(--muted);padding:6px 10px;}
-.crack-banner{width:100%;text-align:center;background:var(--surface2);border:2px solid var(--accent);border-radius:16px;padding:14px 12px;margin:2px 0;}
-.cb-who{font-size:1.15rem;font-weight:800;color:var(--accent);line-height:1.2;}
-.cb-count{font-family:'Poppins',sans-serif;font-size:3.2rem;font-weight:800;line-height:1.05;margin-top:4px;color:var(--text);}
+.crack-banner{width:100%;text-align:center;background:var(--surface2);border:2px solid var(--accent);border-radius:14px;padding:8px 12px;margin:2px 0;}
+.cb-who{font-size:1.05rem;font-weight:800;color:var(--accent);line-height:1.15;}
+.cb-count{font-family:'Poppins',sans-serif;font-size:2.4rem;font-weight:800;line-height:1.02;margin-top:2px;color:var(--text);}
 .cb-count.hot{color:var(--accent-ink,#e0531f);animation:cbpulse .5s ease-in-out infinite alternate;}
 @keyframes cbpulse{from{transform:scale(1);}to{transform:scale(1.14);}}
 .cb-word{font-size:1.25rem;font-weight:700;margin-top:8px;letter-spacing:2px;}
@@ -2712,6 +2718,7 @@ body.light .btn.primary{color:#3a2a00;}
   <div id="t-list-box">
     <div class="label" style="margin-top:16px;">— or — Prepare a word list (just press “Next word” in class)</div>
     <div class="hint">Fill a word + its clue on each row (10–15 is ideal). If you use this list, the single word above is ignored and the game plays through the whole list — in class you just press <b>Next word</b> and the next one appears, no typing. Your list is remembered for next time.</div>
+    <div class="hint" id="t-shared-note" style="display:none;"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:5px;">
       <button type="button" class="btn ghost" id="t-mask-btn" style="flex:none;width:auto;padding:7px 12px;font-size:.72rem;" onclick="toggleListMask()" title="Hide the whole list so it is safe to show on the board">🙈 Hide</button>
     </div>
@@ -2740,16 +2747,24 @@ body.light .btn.primary{color:#3a2a00;}
       <button type="button" class="btn ghost" style="flex:none;width:46px;" onclick="deleteSavedList()" title="Delete selected list">🗑️</button>
     </div>
 
-    <button type="button" class="btn ghost" style="margin-top:8px;" onclick="toggleXfer()">🔀 Move a list to another device ▾</button>
+    <button type="button" class="btn ghost" style="margin-top:8px;" onclick="toggleXfer()">🔀 Share with another teacher ▾</button>
     <div id="t-xfer-box" style="display:none;margin-top:8px;">
-      <div class="hint">Prepare at home, play on the smart board: tap <b>Copy link</b>, email it to yourself, then open that link on the board — the list loads by itself. Or <b>Copy list</b> as text, paste it here on the other device and tap <b>Load</b>.</div>
-      <textarea id="t-xfer" rows="4" class="input" placeholder="Paste a list or a share-link here…" spellcheck="false" style="resize:vertical;font-family:inherit;font-size:.8rem;font-weight:400;letter-spacing:0;line-height:1.5;"></textarea>
-      <div class="btn-row" style="gap:6px;flex-wrap:wrap;">
-        <button type="button" class="btn ghost" style="flex:1;min-width:100px;" onclick="xferCopyText()">📋 Copy list</button>
-        <button type="button" class="btn ghost" style="flex:1;min-width:100px;" onclick="xferCopyLink()">🔗 Copy link</button>
-        <button type="button" class="btn ghost" style="flex:1;min-width:120px;" onclick="xferLoad()">📥 Load into table</button>
+      <div class="hint">Save your list and get a short <b>code</b> + link. Send it to another teacher (or to yourself). They open the link, or type the code under “Load by code”, and the list appears — great for the smart board too.</div>
+      <button type="button" class="btn ghost" onclick="getShareCode()">🔗 Get a share code</button>
+      <div id="t-sharecode-box" style="display:none;margin-top:8px;">
+        <div class="hint" style="font-weight:800;color:#2ecc71;font-size:.95rem;">Share code: <span id="t-sharecode" style="letter-spacing:.14em;">—</span></div>
+        <textarea id="t-xfer" rows="2" class="input" readonly spellcheck="false" style="resize:vertical;font-family:inherit;font-size:.78rem;font-weight:400;letter-spacing:0;line-height:1.5;"></textarea>
+        <div class="btn-row" style="gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn ghost" style="flex:1;min-width:110px;" onclick="copyShareLink()">📋 Copy link</button>
+          <button type="button" class="btn ghost" style="flex:1;min-width:110px;" onclick="copyShareCode()">📋 Copy code</button>
+        </div>
       </div>
-      <div class="hint" id="t-xfer-msg" style="margin-top:4px;font-weight:700;"></div>
+      <div class="hint" style="margin-top:10px;">Load by code (from another teacher):</div>
+      <div class="btn-row" style="gap:6px;">
+        <input type="text" id="t-loadcode" class="input" maxlength="8" placeholder="e.g. K7P2" autocomplete="off" spellcheck="false" style="flex:2;min-width:120px;text-transform:uppercase;letter-spacing:.1em;" oninput="this.value=this.value.toUpperCase()">
+        <button type="button" class="btn ghost" style="flex:1;min-width:90px;" onclick="loadByCode()">📥 Load</button>
+      </div>
+      <div class="hint" id="t-xfer-msg" style="margin-top:6px;font-weight:700;"></div>
     </div>
   </div>
 
@@ -2772,7 +2787,11 @@ body.light .btn.primary{color:#3a2a00;}
 
     <div class="board-main">
       <div class="logo-sub" style="margin-top:4px;">Read this out to the class <span class="word-badge" id="b-round" style="display:none;"></span></div>
-      <div class="clue-strip" id="b-cluestrip">Clue: <b id="b-clue">—</b> · <span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</div>
+      <div class="clue-strip" id="b-cluestrip">
+        <span class="cs-label">Clue</span>
+        <span class="cs-clue" id="b-clue">—</span>
+        <span class="cs-meta"><span id="b-len">—</span> letters · <span id="b-guesses">—</span> guesses</span>
+      </div>
       <div class="clue-strip" id="b-cluehidden" style="display:none;">🔒 Clue hidden · <b id="b-hlen">—</b> letters · <b id="b-hguesses">—</b> guesses — students are joining… tap <b>Reveal clue</b> when everyone's in</div>
 
       <div class="racing" id="b-racing" style="display:none;"></div>
@@ -3216,29 +3235,42 @@ function textToList(txt){
 }
 function toggleXfer(){
   const b=document.getElementById('t-xfer-box'); if(!b) return;
-  const open=(b.style.display==='none'||!b.style.display);
-  b.style.display=open?'block':'none';
-  if(open){ const ta=document.getElementById('t-xfer'); if(ta && !ta.value.trim()) ta.value=listToText(readRows()); }
+  b.style.display=(b.style.display==='none'||!b.style.display)?'block':'none';
 }
 async function copyTextOut(txt,okMsg){
   const msg=document.getElementById('t-xfer-msg'); const ta=document.getElementById('t-xfer');
-  if(ta) ta.value=txt;
   try{ await navigator.clipboard.writeText(txt); if(msg){ msg.textContent=okMsg; msg.style.color='#2ecc71'; } }
-  catch(e){ if(ta){ ta.focus(); ta.select(); } if(msg){ msg.textContent='Select the text above and copy it (Ctrl+C).'; msg.style.color='var(--accent2)'; } }
+  catch(e){ if(ta){ ta.focus(); ta.select(); } if(msg){ msg.textContent='Select the link above and copy it (Ctrl+C).'; msg.style.color='var(--accent2)'; } }
 }
-function xferCopyText(){ const items=readRows(); const msg=document.getElementById('t-xfer-msg');
-  if(!items.length){ if(msg){msg.textContent='Fill the table first.';msg.style.color='var(--accent2)';} return; }
-  copyTextOut(listToText(items),'✓ List copied — email/note it to yourself'); }
-function xferCopyLink(){ const items=readRows(); const msg=document.getElementById('t-xfer-msg');
-  if(!items.length){ if(msg){msg.textContent='Fill the table first.';msg.style.color='var(--accent2)';} return; }
-  const link=listToLink(items);
-  if(!link){ if(msg){msg.textContent='Could not make a link here.';msg.style.color='var(--accent2)';} return; }
-  copyTextOut(link,'✓ Link copied — open it on the other device to auto-load'); }
-function xferLoad(){ const ta=document.getElementById('t-xfer'); const msg=document.getElementById('t-xfer-msg');
-  const items=textToList(ta?ta.value:'');
-  if(!items.length){ if(msg){msg.textContent='Paste a list or a share-link first.';msg.style.color='var(--accent2)';} return; }
+// Save the current table to the server and show a short code + link to share.
+async function getShareCode(){
+  const msg=document.getElementById('t-xfer-msg');
+  const items=parseRows().items;
+  if(!items.length){ if(msg){msg.textContent='Fill the table with some words first.';msg.style.color='var(--accent2)';} return; }
+  if(msg){ msg.textContent='Saving…'; msg.style.color=''; }
+  let code=null;
+  try{ const r=await api('putList',{ items }); code=r && r.code; }catch(e){}
+  if(!code){ if(msg){msg.textContent='Could not reach the server — try again.';msg.style.color='var(--accent2)';} return; }
+  const link=location.origin+location.pathname+'#l='+code;
+  const sc=document.getElementById('t-sharecode'); if(sc) sc.textContent=code;
+  const ta=document.getElementById('t-xfer'); if(ta) ta.value=link;
+  const box=document.getElementById('t-sharecode-box'); if(box) box.style.display='';
+  if(msg){ msg.textContent='✓ Ready — send the code or link to another teacher'; msg.style.color='#2ecc71'; }
+}
+function copyShareLink(){ const ta=document.getElementById('t-xfer'); copyTextOut(ta?ta.value:'','✓ Link copied'); }
+function copyShareCode(){ const sc=document.getElementById('t-sharecode'); copyTextOut(sc?sc.textContent:'','✓ Code copied'); }
+// Load a list another teacher shared, by its short code.
+async function loadByCode(){
+  const msg=document.getElementById('t-xfer-msg');
+  const code=(document.getElementById('t-loadcode').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(code.length<4){ if(msg){msg.textContent='Enter the share code first.';msg.style.color='var(--accent2)';} return; }
+  if(msg){ msg.textContent='Loading…'; msg.style.color=''; }
+  let items=null;
+  try{ const r=await api('getList',{ code }); items=r && r.items; }catch(e){}
+  if(!items || !items.length){ if(msg){msg.textContent='No list found for code “'+code+'”.';msg.style.color='var(--accent2)';} return; }
   seedRows(items); updateListCount();
-  if(msg){ msg.textContent='✓ Loaded '+items.length+' words into the table'; msg.style.color='#2ecc71'; } }
+  if(msg){ msg.textContent='✓ Loaded '+items.length+' words into the table'; msg.style.color='#2ecc71'; }
+}
 
 // ── Lobby: a word starts with its clue HIDDEN (sent to the server as empty) so
 //    everyone can scan/join first; the teacher taps "Reveal clue" to show it to
@@ -3319,11 +3351,17 @@ function goTeacher(){            // start a brand-new game (fresh code)
   const b=document.getElementById('t-start'); if(b) b.textContent='🔐 Start the round';
   ['t-words','t-words-label','t-list-box'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='';});
   document.getElementById('t-target').value=''; document.getElementById('t-clue').value='';
-  if(pendingSharedList && pendingSharedList.length){ seedRows(pendingSharedList); pendingSharedList=null; listMasked=true; }
+  let sharedN=0;
+  if(pendingSharedList && pendingSharedList.length){ sharedN=pendingSharedList.length; seedRows(pendingSharedList); pendingSharedList=null; listMasked=true; }
   else { seedRows(loadLastList()); listMasked=false; }   // restore last prepared list (or 10 blank rows)
   refreshSavedDropdown();
   applyMask();
   updateListCount();
+  const note=document.getElementById('t-shared-note');
+  if(note){
+    if(sharedN){ note.innerHTML='📥 Loaded a shared list ('+sharedN+' words). Nothing was deleted — your own saved lists are still under “My saved lists” below.'; note.style.display=''; note.style.color='#2ecc71'; }
+    else note.style.display='none';
+  }
   go('s-teacher');
 }
 function goNextWord(){           // add the NEXT word to the current room (same code)
@@ -3673,11 +3711,13 @@ async function showFinale(){
   const f=document.getElementById('finale'); if(!f) return;
   const pod=document.getElementById('finale-podium'); if(pod) pod.classList.remove('pulse');
   f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');   // restart the pop-in animations
-  // Celebrate, timed to each place popping in.
+  // Celebrate, timed to each place popping in — then keep the party going a while.
   launchConfetti(); try{ playWinChime(); }catch(e){}
   setTimeout(()=>launchConfetti(), 750);                        // 2nd place
   setTimeout(()=>{ launchConfetti(); try{ playWinChime(); }catch(e){} }, 1350);  // 1st place
-  // once all three are in, keep them gently growing/shrinking
+  // extra confetti bursts so the podium celebration lasts longer
+  [2600, 4000, 5500, 7200, 9000].forEach(t=> setTimeout(()=>{ if(document.getElementById('finale').classList.contains('show')) launchConfetti(); }, t));
+  // once all three are in, keep them gently growing/shrinking (stays until closed)
   setTimeout(()=>{ if(pod) pod.classList.add('pulse'); }, 2100);
 }
 function closeFinale(){ const f=document.getElementById('finale'); if(f) f.classList.remove('show'); const pod=document.getElementById('finale-podium'); if(pod) pod.classList.remove('pulse'); }
@@ -4386,13 +4426,23 @@ function toggleFullscreen(){
 //    drops the teacher straight onto the setup screen with it ready. ──
 (function handleSharedList(){
   try{
+    // Long self-contained link (#list=…) — load immediately.
     const m=location.hash.match(/#list=([^\s&#]+)/);
-    if(!m) return;
-    const items=textToList(location.hash);
-    if(items && items.length){
-      pendingSharedList=items;
-      history.replaceState(null,'',location.pathname+location.search);  // clean the URL
-      setTimeout(()=>{ try{ goTeacher(); }catch(e){} }, 60);            // open setup with the list ready
+    if(m){
+      const items=textToList(location.hash);
+      if(items && items.length){
+        pendingSharedList=items;
+        history.replaceState(null,'',location.pathname+location.search);
+        setTimeout(()=>{ try{ goTeacher(); }catch(e){} }, 60);
+      }
+      return;
+    }
+    // Short share-code link (#l=CODE) — fetch the list from the server, then open.
+    const c=location.hash.match(/#l=([A-Za-z0-9]{4,8})/);
+    if(c){
+      const code=c[1].toUpperCase();
+      history.replaceState(null,'',location.pathname+location.search);
+      (async()=>{ try{ const r=await api('getList',{ code }); const items=r && r.items; if(items && items.length){ pendingSharedList=items; goTeacher(); } }catch(e){} })();
     }
   }catch(e){}
 })();
